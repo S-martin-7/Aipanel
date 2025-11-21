@@ -14,10 +14,17 @@ datasource db {
 // ENUMS
 // ============================================
 
-enum UserRole {
+enum AdminRole {
   SUPER_ADMIN
   ADMIN
-  USER
+  SUPPORT
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  VIEWER
 }
 
 enum ServerStatus {
@@ -116,20 +123,100 @@ enum PaymentMethodType {
 // MODELS
 // ============================================
 
-// Usuario administrador del sistema
+// Usuario administrador del sistema (Nivel 1)
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password      String
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String    // bcrypt hashed
   name          String
-  role          UserRole @default(USER)
-  isActive      Boolean  @default(true)
+  role          AdminRole @default(ADMIN)
+  isActive      Boolean   @default(true)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  // Auditoría
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   lastLoginAt   DateTime?
 
+  // Refresh tokens
+  refreshTokens RefreshToken[]
+
   @@map("users")
+}
+
+// Usuario de Tenant (Nivel 2)
+model TenantUser {
+  id            String      @id @default(cuid())
+  tenantId      String
+  email         String      @unique
+  password      String      // bcrypt hashed
+  name          String
+  role          TenantRole  @default(VIEWER)
+  isActive      Boolean     @default(true)
+
+  // Relaciones
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Auditoría
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  lastLoginAt   DateTime?
+
+  // Refresh tokens
+  refreshTokens RefreshToken[]
+
+  @@index([tenantId])
+  @@map("tenant_users")
+}
+
+// Refresh Tokens (para ambos niveles)
+model RefreshToken {
+  id            String      @id @default(cuid())
+  token         String      @unique
+
+  // Usuario puede ser Admin o TenantUser
+  userId        String?
+  tenantUserId  String?
+
+  user          User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantUser    TenantUser? @relation(fields: [tenantUserId], references: [id], onDelete: Cascade)
+
+  expiresAt     DateTime
+  createdAt     DateTime    @default(now())
+
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// Logs de auditoría
+model AuditLog {
+  id            String   @id @default(cuid())
+
+  // Quién hizo la acción
+  userId        String?
+  tenantUserId  String?
+  userType      String   // 'admin' | 'tenant'
+  userEmail     String
+
+  // Qué hizo
+  action        String   // 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', etc.
+  resource      String   // 'server', 'tenant', 'agent', etc.
+  resourceId    String?
+
+  // Detalles
+  changes       Json?    // Cambios realizados
+  metadata      Json?    // Información adicional
+
+  // IP y User Agent
+  ipAddress     String?
+  userAgent     String?
+
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 // Nivel 1: Servidor con APIKEY principal
@@ -187,6 +274,7 @@ model Tenant {
 
   // Relaciones
   server            Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  users             TenantUser[]  // Usuarios del tenant
   agents            Agent[]
   dataSources       DataSource[]
   payments          Payment[]

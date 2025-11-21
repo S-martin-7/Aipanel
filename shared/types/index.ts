@@ -5,10 +5,17 @@
 // ENUMS
 // ============================================
 
-export enum UserRole {
+export enum AdminRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
-  USER = 'USER',
+  SUPPORT = 'SUPPORT',
+}
+
+export enum TenantRole {
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  DEVELOPER = 'DEVELOPER',
+  VIEWER = 'VIEWER',
 }
 
 export enum ServerStatus {
@@ -107,15 +114,57 @@ export enum PaymentMethodType {
 // INTERFACES
 // ============================================
 
+// Usuario Admin (Nivel 1)
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: AdminRole;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt?: Date;
+}
+
+// Usuario Tenant (Nivel 2)
+export interface TenantUser {
+  id: string;
+  tenantId: string;
+  email: string;
+  name: string;
+  role: TenantRole;
+  isActive: boolean;
+  tenant?: Tenant;
+  createdAt: Date;
+  updatedAt: Date;
+  lastLoginAt?: Date;
+}
+
+// Refresh Token
+export interface RefreshToken {
+  id: string;
+  token: string;
+  userId?: string;
+  tenantUserId?: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+// Audit Log
+export interface AuditLog {
+  id: string;
+  userId?: string;
+  tenantUserId?: string;
+  userType: 'admin' | 'tenant';
+  userEmail: string;
+  action: string;
+  resource: string;
+  resourceId?: string;
+  changes?: Record<string, any>;
+  metadata?: Record<string, any>;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: Date;
 }
 
 export interface Server {
@@ -313,6 +362,72 @@ export interface Alert {
 // ============================================
 // DTOs (Data Transfer Objects)
 // ============================================
+
+// ===== Authentication DTOs =====
+
+// Admin Login
+export interface AdminLoginDto {
+  email: string;
+  password: string;
+}
+
+export interface AdminRegisterDto {
+  email: string;
+  password: string;
+  name: string;
+  role?: AdminRole;
+}
+
+// Tenant Login
+export interface TenantLoginDto {
+  email: string;
+  password: string;
+}
+
+export interface TenantRegisterDto {
+  tenantId: string;
+  email: string;
+  password: string;
+  name: string;
+  role?: TenantRole;
+}
+
+// Auth Responses
+export interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  user: User | TenantUser;
+  tenant?: Tenant;
+}
+
+export interface RefreshTokenDto {
+  refreshToken: string;
+}
+
+export interface ChangePasswordDto {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordDto {
+  email: string;
+}
+
+export interface ResetPasswordConfirmDto {
+  token: string;
+  newPassword: string;
+}
+
+// JWT Payload
+export interface JWTPayload {
+  userId: string;
+  email: string;
+  role: AdminRole | TenantRole;
+  type: 'admin' | 'tenant';
+  tenantId?: string; // Solo para tenant users
+}
+
+// ===== Server DTOs =====
 
 export interface CreateServerDto {
   name: string;
