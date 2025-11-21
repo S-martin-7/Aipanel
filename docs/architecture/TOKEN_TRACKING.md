@@ -2,7 +2,7 @@
 
 Sistema completo para tracking, control y facturación basada en uso de tokens de API de AI.
 
-## 🎯 Objetivos
+## [+] Objetivos
 
 1. **Conteo Preciso**: Registrar cada token usado (input, output, reasoning)
 2. **Uso Justo**: Establecer límites y umbrales por tenant
@@ -10,7 +10,7 @@ Sistema completo para tracking, control y facturación basada en uso de tokens d
 4. **Control de Costos**: Alertas y acciones automáticas
 5. **Facturación**: Base para cobro por uso real
 
-## 📊 Arquitectura del Sistema
+## [=] Arquitectura del Sistema
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -70,7 +70,7 @@ Sistema completo para tracking, control y facturación basada en uso de tokens d
 └─────────────────────────────────────────────────┘
 ```
 
-## 🗄️ Modelos de Datos
+## [?] Modelos de Datos
 
 ### Token Usage (Actualizado)
 
@@ -248,7 +248,7 @@ model UsageAlert {
 }
 ```
 
-## 💰 Cálculo de Costos por Modelo
+## [?] Cálculo de Costos por Modelo
 
 ```python
 # backend/app/services/token_pricing.py
@@ -316,7 +316,7 @@ def calculate_cost(
     }
 ```
 
-## 🔍 Servicio de Tracking de Tokens
+## [?] Servicio de Tracking de Tokens
 
 ```python
 # backend/app/services/token_tracker.py
@@ -459,7 +459,7 @@ class TokenTracker:
         }
 ```
 
-## ⚠️ Sistema de Umbrales y Alertas
+## [!] Sistema de Umbrales y Alertas
 
 ```python
 # backend/app/services/threshold_checker.py
@@ -619,7 +619,7 @@ async def _create_alert(
     await db.commit()
 ```
 
-## 📈 Dashboard de Métricas
+## [^] Dashboard de Métricas
 
 ```python
 # backend/app/api/v1/usage.py
@@ -686,7 +686,7 @@ async def get_usage_summary(
     }
 ```
 
-## 🎯 Umbrales Recomendados
+## [+] Umbrales Recomendados
 
 ```python
 # Configuración por defecto para nuevos tenants
@@ -712,7 +712,7 @@ DEFAULT_THRESHOLDS = {
 }
 ```
 
-## 📊 Reportes y Análisis
+## [=] Reportes y Análisis
 
 ```python
 @router.get("/usage/history")
@@ -742,11 +742,11 @@ async def get_usage_history(
 ---
 
 **Sistema completo de conteo y control de tokens implementado con:**
-- ✅ Tracking preciso por request
-- ✅ Costos calculados automáticamente
-- ✅ Umbrales configurables
-- ✅ Alertas automáticas multinivel
-- ✅ Suspensión automática opcional
-- ✅ Dashboard en tiempo real
-- ✅ Historial completo
-- ✅ Base para facturación por uso
+- [OK] Tracking preciso por request
+- [OK] Costos calculados automáticamente
+- [OK] Umbrales configurables
+- [OK] Alertas automáticas multinivel
+- [OK] Suspensión automática opcional
+- [OK] Dashboard en tiempo real
+- [OK] Historial completo
+- [OK] Base para facturación por uso

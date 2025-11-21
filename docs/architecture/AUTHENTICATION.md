@@ -2,7 +2,7 @@
 
 Sistema de autenticación multi-nivel para control granular de acceso entre administradores del sistema y usuarios tenant.
 
-## 🏗️ Arquitectura de Dos Niveles
+## [#] Arquitectura de Dos Niveles
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -25,7 +25,7 @@ Sistema de autenticación multi-nivel para control granular de acceso entre admi
 └─────────────────────────────────────────────────────────┘
 ```
 
-## 👥 Roles del Sistema
+## [?] Roles del Sistema
 
 ### Nivel 1: Administradores
 
@@ -38,25 +38,25 @@ enum AdminRole {
 ```
 
 **Permisos de SUPER_ADMIN:**
-- ✅ CRUD completo de usuarios admin
-- ✅ CRUD completo de servidores
-- ✅ CRUD completo de tenants
-- ✅ Ver todas las métricas financieras
-- ✅ Configuración global del sistema
-- ✅ Logs de auditoría completos
+- [OK] CRUD completo de usuarios admin
+- [OK] CRUD completo de servidores
+- [OK] CRUD completo de tenants
+- [OK] Ver todas las métricas financieras
+- [OK] Configuración global del sistema
+- [OK] Logs de auditoría completos
 
 **Permisos de ADMIN:**
-- ✅ CRUD de servidores (asignados a él)
-- ✅ CRUD de tenants (asignados a él)
-- ✅ Ver métricas de sus servidores
-- ❌ No puede crear otros admins
-- ❌ No puede modificar configuración global
+- [OK] CRUD de servidores (asignados a él)
+- [OK] CRUD de tenants (asignados a él)
+- [OK] Ver métricas de sus servidores
+- [X] No puede crear otros admins
+- [X] No puede modificar configuración global
 
 **Permisos de SUPPORT:**
-- ✅ Ver servidores y tenants (solo lectura)
-- ✅ Ver tickets de soporte
-- ❌ No puede modificar nada
-- ❌ No puede ver información financiera sensible
+- [OK] Ver servidores y tenants (solo lectura)
+- [OK] Ver tickets de soporte
+- [X] No puede modificar nada
+- [X] No puede ver información financiera sensible
 
 ### Nivel 2: Usuarios Tenant
 
@@ -70,33 +70,33 @@ enum TenantRole {
 ```
 
 **Permisos de OWNER:**
-- ✅ CRUD completo de usuarios del tenant
-- ✅ CRUD completo de agentes
-- ✅ CRUD completo de fuentes de datos
-- ✅ Configurar métodos de pago
-- ✅ Ver facturación y cartola
-- ✅ Rotar APIKey del tenant
+- [OK] CRUD completo de usuarios del tenant
+- [OK] CRUD completo de agentes
+- [OK] CRUD completo de fuentes de datos
+- [OK] Configurar métodos de pago
+- [OK] Ver facturación y cartola
+- [OK] Rotar APIKey del tenant
 
 **Permisos de ADMIN:**
-- ✅ CRUD de agentes
-- ✅ CRUD de fuentes de datos
-- ✅ Ver métricas de uso
-- ❌ No puede gestionar usuarios
-- ❌ No puede ver facturación completa
+- [OK] CRUD de agentes
+- [OK] CRUD de fuentes de datos
+- [OK] Ver métricas de uso
+- [X] No puede gestionar usuarios
+- [X] No puede ver facturación completa
 
 **Permisos de DEVELOPER:**
-- ✅ Usar agentes vía API
-- ✅ Ver documentación de API
-- ✅ Ver métricas de uso
-- ❌ No puede crear agentes
-- ❌ No puede modificar configuración
+- [OK] Usar agentes vía API
+- [OK] Ver documentación de API
+- [OK] Ver métricas de uso
+- [X] No puede crear agentes
+- [X] No puede modificar configuración
 
 **Permisos de VIEWER:**
-- ✅ Ver agentes
-- ✅ Ver métricas básicas
-- ❌ No puede modificar nada
+- [OK] Ver agentes
+- [OK] Ver métricas básicas
+- [X] No puede modificar nada
 
-## 🔐 Flujo de Autenticación
+## [?] Flujo de Autenticación
 
 ### Flujo Admin (Nivel 1)
 
@@ -179,7 +179,7 @@ enum TenantRole {
 └────────────────────────────────────────────────────────┘
 ```
 
-## 🗄️ Modelo de Datos Actualizado
+## [?] Modelo de Datos Actualizado
 
 ```prisma
 // Admin Users (Nivel 1)
@@ -292,7 +292,7 @@ model AuditLog {
 }
 ```
 
-## 🛡️ Middleware y Guards
+## [?] Middleware y Guards
 
 ### JWT Strategy
 
@@ -443,7 +443,7 @@ export const CurrentTenant = createParamDecorator(
 );
 ```
 
-## 📡 Endpoints de Autenticación
+## [?] Endpoints de Autenticación
 
 ### Admin Endpoints
 
@@ -507,7 +507,7 @@ Headers: { Authorization: Bearer <token> }
 Response: { user, tenant }
 ```
 
-## 🔒 Seguridad y Mejores Prácticas
+## [!] Seguridad y Mejores Prácticas
 
 ### Password Hashing
 
@@ -554,7 +554,7 @@ async login(@Body() loginDto: LoginDto) {
 
 Cada vez que se usa un refresh token, generar uno nuevo y invalidar el anterior.
 
-## 📊 Dashboard por Nivel
+## [=] Dashboard por Nivel
 
 ### Dashboard Admin (Nivel 1)
 
@@ -582,15 +582,15 @@ Cada vez que se usa un refresh token, generar uno nuevo y invalidar el anterior.
 - Métricas de costos
 - Configuración del tenant
 
-## 🚨 Manejo de Suspensiones
+## [?] Manejo de Suspensiones
 
 ### Tenant Suspendido
 
 Si un tenant está suspendido (`status: 'SUSPENDED'`):
 
-1. **Login:** ❌ Bloqueado con mensaje: "Tu cuenta está suspendida por falta de pago"
-2. **API Calls:** ❌ Rechazados con error 403
-3. **Dashboard:** ⚠️ Acceso limitado solo a ver facturación y pagar
+1. **Login:** [X] Bloqueado con mensaje: "Tu cuenta está suspendida por falta de pago"
+2. **API Calls:** [X] Rechazados con error 403
+3. **Dashboard:** [!] Acceso limitado solo a ver facturación y pagar
 
 ```typescript
 @Injectable()
@@ -621,7 +621,7 @@ export class TenantStatusGuard implements CanActivate {
 }
 ```
 
-## 🔍 Auditoría
+## [?] Auditoría
 
 Todos los eventos importantes deben registrarse en `AuditLog`:
 

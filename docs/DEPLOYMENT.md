@@ -2,7 +2,7 @@
 
 Esta guía te ayudará a desplegar AIPanel directamente en tu VPS sin usar Docker, optimizando el uso de recursos.
 
-## 📋 Prerrequisitos
+## [-] Prerrequisitos
 
 - VPS con Ubuntu 20.04+ o Debian 11+
 - Mínimo 2GB RAM, 2 vCPUs
@@ -10,15 +10,15 @@ Esta guía te ayudará a desplegar AIPanel directamente en tu VPS sin usar Docke
 - Dominio apuntando a tu VPS
 - Puertos disponibles (ej: 3000, 4000)
 
-## 🎯 Ventajas de No Usar Docker
+## [+] Ventajas de No Usar Docker
 
-- ✅ Menor uso de RAM (~200-300MB menos)
-- ✅ Menor uso de CPU (sin overhead de contenedores)
-- ✅ Más simple para debugging
-- ✅ Perfecto para 2-3 apps por servidor
-- ✅ Acceso directo a logs y procesos
+- [OK] Menor uso de RAM (~200-300MB menos)
+- [OK] Menor uso de CPU (sin overhead de contenedores)
+- [OK] Más simple para debugging
+- [OK] Perfecto para 2-3 apps por servidor
+- [OK] Acceso directo a logs y procesos
 
-## 🚀 Instalación Rápida
+## [*] Instalación Rápida
 
 ### Paso 1: Clonar el Repositorio
 
@@ -91,7 +91,7 @@ NEXT_PUBLIC_API_URL=https://api.aipanel.tudominio.com
 bash deploy.sh
 ```
 
-## ⚙️ Configuración de Puertos
+## [?] Configuración de Puertos
 
 Si ya tienes otras aplicaciones corriendo, cambia los puertos en `.env`:
 
@@ -103,7 +103,7 @@ POSTGRES_PORT=5432
 REDIS_PORT=6379
 ```
 
-## 🔧 Configurar Nginx
+## [T] Configurar Nginx
 
 ### 1. Copiar Configuración
 
@@ -136,7 +136,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## 🔐 SSL con Let's Encrypt
+## [?] SSL con Let's Encrypt
 
 ```bash
 # Instalar Certbot
@@ -149,7 +149,7 @@ sudo certbot --nginx -d aipanel.tudominio.com -d api.aipanel.tudominio.com
 sudo certbot renew --dry-run
 ```
 
-## 🌐 Configurar DNS
+## [?] Configurar DNS
 
 En tu proveedor de DNS:
 
@@ -159,7 +159,7 @@ aipanel.tudominio.com       →  IP_DE_TU_VPS
 api.aipanel.tudominio.com   →  IP_DE_TU_VPS
 ```
 
-## 📊 Gestión con PM2
+## [=] Gestión con PM2
 
 ### Ver Procesos
 
@@ -207,7 +207,7 @@ pm2 monit
 pm2 describe aipanel-backend
 ```
 
-## 🔄 Actualizaciones
+## [?] Actualizaciones
 
 ```bash
 cd /var/www/aipanel
@@ -219,7 +219,7 @@ git pull origin main
 bash deploy.sh
 ```
 
-## 🗄️ Base de Datos
+## [?] Base de Datos
 
 ### Acceder a PostgreSQL
 
@@ -269,7 +269,7 @@ npx prisma migrate deploy
 npx prisma db seed
 ```
 
-## 📁 Estructura de Logs
+## [?] Estructura de Logs
 
 Los logs se guardan en:
 
@@ -296,7 +296,7 @@ tail -f logs/backend-error.log
 pm2 logs
 ```
 
-## 🔥 Firewall
+## [!] Firewall
 
 ```bash
 # Permitir HTTP/HTTPS
@@ -315,7 +315,7 @@ sudo ufw status
 
 **NOTA**: No expongas los puertos de las apps (3000, 4000) directamente. Nginx hace de reverse proxy.
 
-## 💾 Uso de Recursos
+## [?] Uso de Recursos
 
 ### Monitorear Sistema
 
@@ -431,7 +431,7 @@ pm2 flush
 sudo journalctl --vacuum-time=7d
 ```
 
-## 🔐 Seguridad Adicional
+## [?] Seguridad Adicional
 
 ### 1. Crear Usuario Específico
 
@@ -460,7 +460,7 @@ sudo systemctl start fail2ban
 sudo apt update && sudo apt upgrade -y
 ```
 
-## 🎛️ Variables de Entorno Importantes
+## [?] Variables de Entorno Importantes
 
 ```env
 # Producción vs Desarrollo
@@ -483,7 +483,7 @@ GRACE_PERIOD_DAYS=14
 PAYMENT_REMINDER_DAYS=7,10,13
 ```
 
-## 📞 Comandos Rápidos de Referencia
+## [?] Comandos Rápidos de Referencia
 
 ```bash
 # Ver estado de todo

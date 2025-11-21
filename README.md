@@ -2,7 +2,7 @@
 
 Panel de control administrativo para gestionar servidores, tenants, APIKeys, pagos y agentes AI personalizados con modelos OpenAI GPT-5 y Claude.
 
-## 🚀 Características Principales
+## [*] Características Principales
 
 ### Sistema Multi-Nivel
 - **Nivel 1**: Servidores con APIKEY principal
@@ -36,7 +36,7 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 - Alertas de cuota y límites
 - Dashboard con gráficos interactivos
 
-## 🏗️ Arquitectura
+## [#] Arquitectura
 
 ```
 ┌─────────────────────────────────────┐
@@ -57,7 +57,7 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 └─────────┘ └─────────┘ └─────────┘
 ```
 
-## 📂 Estructura del Proyecto
+## [...] Estructura del Proyecto
 
 ```
 /
@@ -83,7 +83,7 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 ├── docs/                 # Documentación
 ```
 
-## 🛠️ Stack Tecnológico (Python-First)
+## [>] Stack Tecnológico (Python-First)
 
 ### Backend (100% Python)
 - **Framework**: FastAPI + Uvicorn
@@ -118,7 +118,7 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 - **Email**: SendGrid o Resend
 - **Procesamiento**: PyPDF2, pdfplumber, pytesseract (OCR)
 
-## 🎯 Por Qué Python + Sin Docker
+## [+] Por Qué Python + Sin Docker
 
 Este proyecto usa **Python para el backend** y **deployment nativo**:
 
@@ -204,7 +204,7 @@ sudo systemctl restart aipanel-api     # Reiniciar servicio
 sudo systemctl status 'aipanel-*'      # Ver todos los servicios
 ```
 
-## 📊 Modelos AI Soportados
+## [=] Modelos AI Soportados
 
 ### OpenAI
 - **gpt-5-mini**: Texto + Visión + Imágenes + Documentos
@@ -217,7 +217,7 @@ sudo systemctl status 'aipanel-*'      # Ver todos los servicios
 - **claude-opus-4**: Tareas complejas
 - **claude-haiku-4**: Respuestas rápidas
 
-## 💳 Sistema de Facturación
+## [$] Sistema de Facturación
 
 ### Planes Disponibles
 - **Free**: $0 - 1K tokens/mes
@@ -232,7 +232,7 @@ sudo systemctl status 'aipanel-*'      # Ver todos los servicios
 - Cuota excedida: Throttling o suspensión (configurable)
 - Reactivación automática al pagar
 
-## 📖 Documentación
+## [?] Documentación
 
 - [Guía de Deployment](./docs/DEPLOYMENT.md) - **IMPORTANTE: Lee esto primero**
 - [Stack Tecnológico Python](./docs/architecture/TECH_STACK.md) - Decisiones técnicas
@@ -242,7 +242,7 @@ sudo systemctl status 'aipanel-*'      # Ver todos los servicios
 - [Estrategia de Memoria](./docs/architecture/MEMORY_STRATEGY.md) - Resúmenes vs Vector Stores
 - [Análisis de Gaps](./docs/ANALYSIS_GAPS.md) - Estado del proyecto
 
-## 🔐 Seguridad
+## [!] Seguridad
 
 - Autenticación JWT con refresh tokens
 - APIKeys encriptadas en base de datos
@@ -255,7 +255,7 @@ sudo systemctl status 'aipanel-*'      # Ver todos los servicios
 
 MIT
 
-## 🤝 Contribuir
+## [&] Contribuir
 
 Las contribuciones son bienvenidas. Por favor abre un issue primero para discutir los cambios.
 

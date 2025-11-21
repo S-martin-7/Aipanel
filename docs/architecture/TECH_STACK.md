@@ -2,7 +2,7 @@
 
 Sistema optimizado para Python con herramientas confiables y probadas en producción.
 
-## 🎯 Filosofía de Diseño
+## [+] Filosofía de Diseño
 
 - **Python-First**: Backend 100% Python con librerías maduras
 - **Herramientas Confiables**: Solo librerías con amplio uso en producción
@@ -10,7 +10,7 @@ Sistema optimizado para Python con herramientas confiables y probadas en producc
 - **Async-Native**: Operaciones asíncronas para mejor rendimiento
 - **Minimal JS**: Solo frontend moderno (Next.js), todo el backend en Python
 
-## 🏗️ Arquitectura General
+## [#] Arquitectura General
 
 ```
 ┌─────────────────────────────────────┐
@@ -34,18 +34,18 @@ Sistema optimizado para Python con herramientas confiables y probadas en producc
 └─────────┘ └─────────┘ └─────────┘
 ```
 
-## 🐍 Backend (100% Python)
+## [?] Backend (100% Python)
 
 ### Framework Principal: **FastAPI**
 
 **Por qué FastAPI:**
-- ✅ Alto rendimiento (comparable a Node/Go)
-- ✅ Type hints nativos con Pydantic
-- ✅ Documentación automática (OpenAPI/Swagger)
-- ✅ Async/await nativo
-- ✅ Validación automática de datos
-- ✅ Ampliamente usado en producción
-- ✅ Excelente integración con OpenAI SDK
+- [OK] Alto rendimiento (comparable a Node/Go)
+- [OK] Type hints nativos con Pydantic
+- [OK] Documentación automática (OpenAPI/Swagger)
+- [OK] Async/await nativo
+- [OK] Validación automática de datos
+- [OK] Ampliamente usado en producción
+- [OK] Excelente integración con OpenAI SDK
 
 ```bash
 pip install fastapi[all]
@@ -54,11 +54,11 @@ pip install fastapi[all]
 ### ORM: **SQLAlchemy 2.0 + Alembic**
 
 **Por qué SQLAlchemy:**
-- ✅ ORM más maduro de Python
-- ✅ Type hints con SQLAlchemy 2.0
-- ✅ Async support completo
-- ✅ Migraciones con Alembic
-- ✅ Probado en producción por años
+- [OK] ORM más maduro de Python
+- [OK] Type hints con SQLAlchemy 2.0
+- [OK] Async support completo
+- [OK] Migraciones con Alembic
+- [OK] Probado en producción por años
 
 ```bash
 pip install sqlalchemy[asyncio] alembic psycopg[binary]
@@ -146,7 +146,7 @@ pip install redis hiredis
 pip install pytest pytest-asyncio httpx
 ```
 
-## 📦 Dependencias Completas del Backend
+## [P] Dependencias Completas del Backend
 
 **requirements.txt:**
 ```txt
@@ -209,7 +209,7 @@ mypy==1.8.0
 types-redis==4.6.0.20240106
 ```
 
-## 🎨 Frontend (TypeScript)
+## [?] Frontend (TypeScript)
 
 Mantenemos **Next.js 14+** porque es la mejor herramienta para dashboards:
 
@@ -226,11 +226,11 @@ Mantenemos **Next.js 14+** porque es la mejor herramienta para dashboards:
 ```
 
 **Por qué Next.js:**
-- ✅ Mejor experiencia de desarrollo para dashboards
-- ✅ Server-side rendering
-- ✅ TypeScript nativo
-- ✅ Componentes modernos
-- ✅ Routing automático
+- [OK] Mejor experiencia de desarrollo para dashboards
+- [OK] Server-side rendering
+- [OK] TypeScript nativo
+- [OK] Componentes modernos
+- [OK] Routing automático
 
 ### UI: **shadcn/ui + Tailwind CSS**
 
@@ -262,7 +262,7 @@ npm install recharts
 npm install axios
 ```
 
-## 🚀 Deployment (Sin Node.js en Backend)
+## [*] Deployment (Sin Node.js en Backend)
 
 ### Application Server: **Gunicorn + Uvicorn**
 
@@ -357,7 +357,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-## 🗄️ Base de Datos
+## [?] Base de Datos
 
 ### PostgreSQL 15+
 
@@ -384,7 +384,7 @@ alembic upgrade head
 alembic downgrade -1
 ```
 
-## 📁 Estructura del Proyecto Python
+## [?] Estructura del Proyecto Python
 
 ```
 backend/
@@ -456,7 +456,7 @@ backend/
 └── .env.example
 ```
 
-## 🛠️ Herramientas de Desarrollo
+## [>] Herramientas de Desarrollo
 
 ### Virtual Environment: **venv** (nativo Python)
 
@@ -486,7 +486,7 @@ ruff format app/
 pytest tests/ -v --cov=app
 ```
 
-## 🔒 Seguridad
+## [!] Seguridad
 
 ### Secrets Management: **python-dotenv**
 
@@ -520,7 +520,7 @@ async def login(...):
     ...
 ```
 
-## 📊 Monitoring
+## [=] Monitoring
 
 ### Logs: **structlog**
 
@@ -540,7 +540,7 @@ pip install prometheus-client
 pip install sentry-sdk[fastapi]
 ```
 
-## 🎯 Comparativa: Node.js vs Python
+## [+] Comparativa: Node.js vs Python
 
 | Característica | Node.js (Antes) | Python (Ahora) |
 |----------------|-----------------|----------------|
@@ -557,7 +557,7 @@ pip install sentry-sdk[fastapi]
 | **Madurez** | Medio | Alto |
 | **Recursos** | ~300MB/worker | ~200MB/worker |
 
-## 🚀 Comandos de Deployment
+## [*] Comandos de Deployment
 
 ### Instalación Completa
 
@@ -604,7 +604,7 @@ sudo journalctl -u aipanel-worker -f
 celery -A app.celery flower --port=5555
 ```
 
-## 🎨 Frontend Build
+## [?] Frontend Build
 
 ```bash
 cd /var/www/aipanel/frontend
@@ -619,7 +619,7 @@ npm run build
 # Se inicia con systemd como se mostró arriba
 ```
 
-## ✅ Ventajas del Stack Python-First
+## [OK] Ventajas del Stack Python-First
 
 1. **Menor Fragmentación**: Todo el backend en un solo lenguaje
 2. **Mejor para AI/ML**: Python es el lenguaje nativo de AI
@@ -630,7 +630,7 @@ npm run build
 7. **Hiring**: Más fácil encontrar devs Python
 8. **Ecosistema**: Mejores librerías para data science, AI, procesamiento
 
-## 📖 Documentación API Automática
+## [?] Documentación API Automática
 
 FastAPI genera automáticamente:
 

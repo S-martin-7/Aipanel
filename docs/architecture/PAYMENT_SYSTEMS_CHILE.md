@@ -9,14 +9,14 @@ Análisis de opciones de pago locales para el mercado chileno.
 **Proveedor:** Principal procesador de pagos de Chile (propiedad de bancos chilenos)
 
 **Ventajas:**
-- ✅ SDK oficial de Python: `transbank-sdk` (v6.1.0)
-- ✅ Documentación completa en español
-- ✅ Soporte para Webpay Plus (tarjetas débito/crédito)
-- ✅ OneClick (pagos recurrentes con 1 click)
-- ✅ Webpay Plus Mall (multi-comercio)
-- ✅ Ambiente de integración y producción
-- ✅ Mayor cobertura en Chile (usado por la mayoría de comercios)
-- ✅ Soporte técnico local
+- [OK] SDK oficial de Python: `transbank-sdk` (v6.1.0)
+- [OK] Documentación completa en español
+- [OK] Soporte para Webpay Plus (tarjetas débito/crédito)
+- [OK] OneClick (pagos recurrentes con 1 click)
+- [OK] Webpay Plus Mall (multi-comercio)
+- [OK] Ambiente de integración y producción
+- [OK] Mayor cobertura en Chile (usado por la mayoría de comercios)
+- [OK] Soporte técnico local
 
 **Productos disponibles:**
 - **Webpay Plus**: Pagos únicos con tarjetas (débito/crédito)
@@ -62,16 +62,16 @@ result = Transaction.commit(token=token)
 **Proveedor:** Plataforma de pagos bancarios directos (Chile, Argentina, Perú)
 
 **Ventajas:**
-- ✅ Pago directo desde cuenta bancaria (sin tarjeta)
-- ✅ Menor comisión que tarjetas (~1.5-2%)
-- ✅ Confirmación instantánea
-- ✅ API REST bien documentada
+- [OK] Pago directo desde cuenta bancaria (sin tarjeta)
+- [OK] Menor comisión que tarjetas (~1.5-2%)
+- [OK] Confirmación instantánea
+- [OK] API REST bien documentada
 
 **Desventajas:**
-- ❌ NO tiene SDK oficial de Python
-- ❌ Solo SDKs en Java, PHP, Ruby, .NET
-- ❌ Menor adopción que Transbank
-- ❌ Requiere que usuario tenga banca en línea
+- [X] NO tiene SDK oficial de Python
+- [X] Solo SDKs en Java, PHP, Ruby, .NET
+- [X] Menor adopción que Transbank
+- [X] Requiere que usuario tenga banca en línea
 
 **Integración:**
 Tendrías que usar su REST API directamente:
@@ -101,26 +101,26 @@ response = requests.post(
 
 ---
 
-## 🎯 Recomendación: Transbank
+## [+] Recomendación: Transbank
 
 ### Justificación:
 
-1. **SDK Oficial Python** ✅
+1. **SDK Oficial Python** [OK]
    - Ahorra semanas de desarrollo
    - Mantenido por Transbank
    - Menos bugs, más seguro
 
-2. **Mayor Cobertura** ✅
+2. **Mayor Cobertura** [OK]
    - Aceptado en 99% de comercios chilenos
    - Todos los bancos chilenos lo soportan
    - Usuarios familiarizados con Webpay
 
-3. **Productos Completos** ✅
+3. **Productos Completos** [OK]
    - Pagos únicos: Webpay Plus
    - Suscripciones: OneClick
    - Marketplace: Webpay Plus Mall
 
-4. **Documentación Superior** ✅
+4. **Documentación Superior** [OK]
    - Docs en español
    - Ejemplos de código Python
    - Soporte técnico local
@@ -169,7 +169,7 @@ transbank-sdk==6.1.0
 
 ---
 
-## 📋 Plan de Implementación
+## [-] Plan de Implementación
 
 ### Fase 1: Ambiente de Integración
 ```python
@@ -361,7 +361,7 @@ export default function SubscribePage() {
 
 ---
 
-## 🔒 Seguridad
+## [!] Seguridad
 
 ### Credenciales
 ```bash
@@ -379,7 +379,7 @@ Transbank requiere HTTPS en producción.
 
 ---
 
-## 📊 Modelos de Suscripción
+## [=] Modelos de Suscripción
 
 ### Opción 1: Pago Único Mensual (Webpay Plus)
 - Tenant paga cada mes manualmente
@@ -396,7 +396,7 @@ Transbank requiere HTTPS en producción.
 
 ---
 
-## 🧪 Testing
+## [T] Testing
 
 ### Tarjetas de Prueba (Ambiente Integración):
 
@@ -418,15 +418,15 @@ Transbank requiere HTTPS en producción.
 
 ---
 
-## 📈 Próximos Pasos
+## [^] Próximos Pasos
 
-1. ✅ Instalar SDK: `pip install transbank-sdk`
-2. ✅ Configurar ambiente de integración
-3. ✅ Implementar servicio de pagos
-4. ✅ Crear endpoints REST
-5. ✅ Implementar UI de suscripción
-6. ✅ Probar con tarjetas de prueba
-7. ✅ Solicitar credenciales de producción a Transbank
-8. ✅ Deploy a producción
+1. [OK] Instalar SDK: `pip install transbank-sdk`
+2. [OK] Configurar ambiente de integración
+3. [OK] Implementar servicio de pagos
+4. [OK] Crear endpoints REST
+5. [OK] Implementar UI de suscripción
+6. [OK] Probar con tarjetas de prueba
+7. [OK] Solicitar credenciales de producción a Transbank
+8. [OK] Deploy a producción
 
 **Tiempo estimado:** 1-2 semanas para implementación completa.

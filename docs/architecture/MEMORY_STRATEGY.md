@@ -2,7 +2,7 @@
 
 Análisis de alternativas para memoria de largo plazo y búsqueda de documentos.
 
-## ❌ Problema con Vector Stores Tradicionales
+## [X] Problema con Vector Stores Tradicionales
 
 **Experiencia previa:**
 - Implementación compleja y propensa a errores
@@ -21,7 +21,7 @@ Análisis de alternativas para memoria de largo plazo y búsqueda de documentos.
 
 ---
 
-## ✅ Solución Propuesta: Resúmenes Automáticos + PostgreSQL
+## [OK] Solución Propuesta: Resúmenes Automáticos + PostgreSQL
 
 ### Concepto
 
@@ -29,34 +29,34 @@ En lugar de embeddings y búsqueda vectorial, usar **resúmenes jerárquicos** g
 
 ### Ventajas:
 
-1. **Simplicidad** ✅
+1. **Simplicidad** [OK]
    - Solo PostgreSQL (ya lo tienes)
    - Sin dependencias externas
    - Fácil de debuggear
 
-2. **Velocidad de Implementación** ✅
+2. **Velocidad de Implementación** [OK]
    - 1-2 días vs 2-3 semanas
    - Sin configuración compleja
    - Sin servidores adicionales
 
-3. **Costo** ✅
+3. **Costo** [OK]
    - Sin servicios externos
    - Solo costo de tokens GPT para generar resúmenes
    - Resúmenes se generan 1 vez, se usan muchas veces
 
-4. **Rendimiento Predecible** ✅
+4. **Rendimiento Predecible** [OK]
    - PostgreSQL Full-Text Search es muy rápido
    - Índices GIN/GIST bien optimizados
    - No hay latencia de red a servicios externos
 
-5. **Mejor Control** ✅
+5. **Mejor Control** [OK]
    - Resúmenes legibles por humanos
    - Puedes editarlos manualmente si es necesario
    - Fácil auditar qué información se está usando
 
 ---
 
-## 🏗️ Arquitectura de Resúmenes Jerárquicos
+## [#] Arquitectura de Resúmenes Jerárquicos
 
 ### Modelo de Datos
 
@@ -170,7 +170,7 @@ model DocumentSummary {
 
 ---
 
-## 🔄 Proceso de Ingesta de Documentos
+## [?] Proceso de Ingesta de Documentos
 
 ### 1. Upload de Documento
 
@@ -387,7 +387,7 @@ Formato JSON:
 
 ---
 
-## 🔍 Búsqueda y Recuperación
+## [?] Búsqueda y Recuperación
 
 ### Full-Text Search en PostgreSQL
 
@@ -480,7 +480,7 @@ class SearchService:
 
 ---
 
-## 💬 Integración con Chat (RAG Simplificado)
+## [?] Integración con Chat (RAG Simplificado)
 
 ```python
 # app/services/chat_service.py
@@ -575,7 +575,7 @@ Usa esta información para responder preguntas del usuario. Si la información n
 
 ---
 
-## 📊 Comparación: Resúmenes vs Vector Store
+## [=] Comparación: Resúmenes vs Vector Store
 
 | Aspecto | Vector Store | Resúmenes Automáticos |
 |---------|--------------|----------------------|
@@ -592,35 +592,35 @@ Usa esta información para responder preguntas del usuario. Si la información n
 
 ---
 
-## 🎯 Recomendación Final
+## [+] Recomendación Final
 
 ### Para AIPanel: **Usar Resúmenes Automáticos**
 
 **Justificación:**
 
-1. **MVP más rápido** ✅
+1. **MVP más rápido** [OK]
    - Implementar en días, no semanas
    - Menos riesgo de bloqueo técnico
 
-2. **Suficientemente bueno** ✅
+2. **Suficientemente bueno** [OK]
    - Para 90% de casos de uso es suficiente
    - Búsqueda por keywords + tópicos + full-text es muy efectiva
 
-3. **Más barato** ✅
+3. **Más barato** [OK]
    - Sin costos recurrentes de servicios externos
    - Generas resúmenes 1 vez, los usas miles de veces
 
-4. **Más confiable** ✅
+4. **Más confiable** [OK]
    - Menos cosas que pueden fallar
    - Resúmenes son auditables y editables
 
-5. **Migración futura posible** ✅
+5. **Migración futura posible** [OK]
    - Si necesitas vector store más adelante, puedes agregarlo
    - Los resúmenes seguirán siendo útiles como fallback
 
 ---
 
-## 🚀 Plan de Implementación
+## [*] Plan de Implementación
 
 ### Semana 1: Backend
 - [x] Modelos de datos (Document, Chunk, Summary)
@@ -645,7 +645,7 @@ Usa esta información para responder preguntas del usuario. Si la información n
 
 ---
 
-## 💡 Optimizaciones Futuras (Opcional)
+## [i] Optimizaciones Futuras (Opcional)
 
 Si más adelante necesitas mejor rendimiento:
 
@@ -669,4 +669,4 @@ Si más adelante necesitas mejor rendimiento:
    - Re-generar resúmenes con mejor prompt
    - A/B testing de prompts de resumen
 
-Pero para MVP: **KISS (Keep It Simple, Stupid)** ✅
+Pero para MVP: **KISS (Keep It Simple, Stupid)** [OK]
