@@ -275,6 +275,7 @@ Ver planes detallados en [docs/PRICING_PLANS.md](docs/PRICING_PLANS.md)
 ### Documentos Comerciales
 - [Diferenciadores vs ChatGPT Pro](./docs/DIFFERENTIATORS.md) - Por qué AIPanel es diferente
 - [Planes Comerciales](./docs/PRICING_PLANS.md) - Precios, features y add-ons detallados
+- [Control de Ingresos](./docs/REVENUE_CONTROL.md) - Sistema de facturación y análisis de ingresos por tenant
 
 ### Documentos Técnicos
 - [Guía de Deployment](./docs/DEPLOYMENT.md) - **IMPORTANTE: Lee esto primero**

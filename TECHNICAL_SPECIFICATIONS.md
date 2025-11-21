@@ -160,6 +160,171 @@ CREATE INDEX idx_token_usage_tenant ON token_usage(tenant_id, created_at);
 CREATE INDEX idx_token_usage_agent ON token_usage(agent_id, created_at);
 ```
 
+**subscriptions (Suscripciones de tenants):**
+```sql
+CREATE TABLE subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+
+    -- Plan y estado
+    plan VARCHAR(50) NOT NULL,  -- 'basico', 'pro', 'enterprise'
+    status VARCHAR(50) NOT NULL,  -- 'active', 'trialing', 'past_due', 'canceled', 'suspended'
+
+    -- Precios (en CLP)
+    base_price INTEGER NOT NULL,
+    currency VARCHAR(3) DEFAULT 'CLP',
+
+    -- Cuotas incluidas
+    included_memory_gb DECIMAL(10,2) NOT NULL,
+    included_tokens INTEGER NOT NULL,
+    included_agents INTEGER NOT NULL,
+    included_users INTEGER NOT NULL,
+
+    -- Ciclo de facturacion
+    billing_cycle VARCHAR(20) DEFAULT 'monthly',
+    billing_period_start DATE NOT NULL,
+    billing_period_end DATE NOT NULL,
+    next_billing_date DATE NOT NULL,
+
+    -- Trial
+    trial_start TIMESTAMPTZ,
+    trial_end TIMESTAMPTZ,
+
+    -- Cancelacion
+    canceled_at TIMESTAMPTZ,
+    cancellation_reason TEXT,
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_subscriptions_tenant_id ON subscriptions(tenant_id);
+CREATE INDEX idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX idx_subscriptions_next_billing ON subscriptions(next_billing_date);
+```
+
+**invoices (Facturas):**
+```sql
+CREATE TABLE invoices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    subscription_id UUID REFERENCES subscriptions(id),
+
+    invoice_number VARCHAR(50) UNIQUE NOT NULL,
+    status VARCHAR(50) NOT NULL,  -- 'draft', 'pending', 'paid', 'failed', 'refunded'
+
+    -- Montos en CLP
+    subtotal INTEGER NOT NULL,
+    tax INTEGER DEFAULT 0,
+    total INTEGER NOT NULL,
+    amount_paid INTEGER DEFAULT 0,
+    amount_due INTEGER NOT NULL,
+
+    -- Periodo facturado
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+
+    -- Fechas
+    issue_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    paid_at TIMESTAMPTZ,
+
+    -- Transbank
+    transbank_token VARCHAR(255),
+    transbank_order_id VARCHAR(100),
+
+    -- SII Chile
+    sii_folio INTEGER,
+    sii_pdf_url TEXT,
+    sii_xml_url TEXT,
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_invoices_tenant_id ON invoices(tenant_id);
+CREATE INDEX idx_invoices_status ON invoices(status);
+CREATE INDEX idx_invoices_issue_date ON invoices(issue_date);
+CREATE INDEX idx_invoices_due_date ON invoices(due_date);
+CREATE UNIQUE INDEX idx_invoices_number ON invoices(invoice_number);
+```
+
+**invoice_line_items (Detalle de facturas):**
+```sql
+CREATE TABLE invoice_line_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+
+    description TEXT NOT NULL,
+    item_type VARCHAR(50) NOT NULL,  -- 'base_plan', 'memory_overage', 'token_overage', 'addon', 'service'
+
+    quantity DECIMAL(10,2) DEFAULT 1,
+    unit_price INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+
+    metadata JSONB,
+
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_line_items_invoice_id ON invoice_line_items(invoice_id);
+CREATE INDEX idx_line_items_type ON invoice_line_items(item_type);
+```
+
+**payments (Pagos recibidos):**
+```sql
+CREATE TABLE payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    invoice_id UUID REFERENCES invoices(id),
+
+    amount INTEGER NOT NULL,
+    currency VARCHAR(3) DEFAULT 'CLP',
+    status VARCHAR(50) NOT NULL,  -- 'pending', 'completed', 'failed', 'refunded'
+
+    payment_method VARCHAR(50),  -- 'transbank_webpay', 'transfer', 'khipu'
+
+    -- Transbank
+    transbank_transaction_id VARCHAR(255),
+    transbank_authorization_code VARCHAR(100),
+    transbank_card_type VARCHAR(50),
+    transbank_card_last4 VARCHAR(4),
+
+    receipt_url TEXT,
+
+    paid_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_payments_tenant_id ON payments(tenant_id);
+CREATE INDEX idx_payments_invoice_id ON payments(invoice_id);
+CREATE INDEX idx_payments_status ON payments(status);
+CREATE INDEX idx_payments_paid_at ON payments(paid_at);
+```
+
+**revenue_events (Eventos de ingresos para analytics):**
+```sql
+CREATE TABLE revenue_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+
+    event_type VARCHAR(50) NOT NULL,  -- 'subscription_started', 'upgraded', 'downgraded', 'canceled', 'payment_received', 'overage_charged'
+
+    amount INTEGER NOT NULL,
+    mrr_change INTEGER DEFAULT 0,
+
+    description TEXT,
+    metadata JSONB,
+
+    occurred_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_revenue_events_tenant_id ON revenue_events(tenant_id);
+CREATE INDEX idx_revenue_events_type ON revenue_events(event_type);
+CREATE INDEX idx_revenue_events_occurred_at ON revenue_events(occurred_at);
+```
+
 ### Indices Importantes
 
 ```sql
@@ -1199,6 +1364,374 @@ async def track_usage(
 - `test_threshold_warning`
 - `test_threshold_suspension`
 - `test_usage_report`
+
+### Modulo: Billing (Control de Ingresos)
+
+**Responsabilidad:** Gestion de suscripciones, facturacion y control de ingresos
+
+**Archivos:**
+- `modules/billing/router.py` - Endpoints de API
+- `modules/billing/subscription_service.py` - Gestion de suscripciones
+- `modules/billing/invoice_service.py` - Generacion de facturas
+- `modules/billing/revenue_service.py` - Analisis de ingresos
+- `modules/billing/alerts_service.py` - Alertas de billing
+- `modules/billing/export_service.py` - Exportacion contable
+- `modules/billing/models.py` - Modelos de BD
+- `modules/billing/schemas.py` - Schemas de validacion
+
+**Funcionalidades:**
+
+1. **Gestion de Suscripciones:**
+   - Crear/actualizar/cancelar suscripciones
+   - Upgrade/downgrade de planes
+   - Gestion de trials
+   - Prorrateo automatico
+
+2. **Generacion de Facturas:**
+   - Facturacion automatica mensual
+   - Calculo de overages (memoria, tokens, usuarios)
+   - Integracion con SII Chile (facturacion electronica)
+   - Envio de facturas por email
+
+3. **Control de Ingresos:**
+   - Dashboard de KPIs (MRR, ARR, churn, ARPT)
+   - Reportes por tenant con desglose detallado
+   - Serie temporal de ingresos
+   - Proyecciones y forecasting
+   - Analisis de cohortes
+
+4. **Alertas Automaticas:**
+   - Pagos fallidos
+   - Oportunidades de upsell
+   - Deteccion de churn risk
+   - Overages altos
+
+5. **Exportacion:**
+   - CSV para contabilidad
+   - Excel con reportes ejecutivos
+   - Integracion con API SII
+
+**Endpoints Principales:**
+
+```python
+# Suscripciones
+POST   /api/v1/billing/subscriptions          # Crear suscripcion
+GET    /api/v1/billing/subscriptions/:id      # Obtener suscripcion
+PATCH  /api/v1/billing/subscriptions/:id      # Actualizar plan
+DELETE /api/v1/billing/subscriptions/:id      # Cancelar
+
+# Facturas
+GET    /api/v1/billing/invoices               # Listar facturas (con filtros)
+GET    /api/v1/billing/invoices/:id           # Detalle de factura
+POST   /api/v1/billing/invoices/:id/send      # Enviar por email
+GET    /api/v1/billing/invoices/:id/pdf       # Descargar PDF
+
+# Control de Ingresos (Admin Nivel 1)
+GET    /api/v1/billing/revenue/summary        # KPIs principales
+GET    /api/v1/billing/revenue/by-tenant      # Ingresos por tenant
+GET    /api/v1/billing/revenue/timeline       # Serie temporal
+GET    /api/v1/billing/revenue/forecast       # Proyecciones
+GET    /api/v1/billing/revenue/cohorts        # Analisis de cohortes
+
+# Alertas
+GET    /api/v1/billing/alerts                 # Alertas pendientes
+
+# Exportacion
+GET    /api/v1/billing/export/csv             # CSV mensual
+GET    /api/v1/billing/export/excel           # Reporte ejecutivo
+```
+
+**Ejemplo: Generacion de Factura Automatica**
+
+```python
+# backend/app/modules/billing/invoice_service.py
+
+from datetime import datetime, timedelta
+from app.models import Subscription, Invoice, InvoiceLineItem
+from app.modules.billing.revenue_service import RevenueService
+
+class InvoiceService:
+    """Servicio para gestion de facturas."""
+
+    async def generate_monthly_invoices(self):
+        """Genera facturas para todas las suscripciones activas."""
+
+        today = datetime.now().date()
+
+        # Buscar suscripciones cuya fecha de billing es hoy
+        subscriptions = await db.query(Subscription).filter(
+            Subscription.status == 'active',
+            Subscription.next_billing_date == today
+        ).all()
+
+        logger.info(f"Generating invoices for {len(subscriptions)} subscriptions")
+
+        for subscription in subscriptions:
+            try:
+                await self._generate_invoice_for_subscription(subscription)
+            except Exception as e:
+                logger.error(f"Failed to generate invoice for {subscription.id}: {e}")
+
+    async def _generate_invoice_for_subscription(
+        self,
+        subscription: Subscription
+    ) -> Invoice:
+        """Genera factura para una suscripcion."""
+
+        period_start = subscription.billing_period_start
+        period_end = subscription.billing_period_end
+
+        # Generar numero de factura
+        invoice_number = await self._generate_invoice_number()
+
+        # Crear factura
+        invoice = Invoice(
+            tenant_id=subscription.tenant_id,
+            subscription_id=subscription.id,
+            invoice_number=invoice_number,
+            status='pending',
+            period_start=period_start,
+            period_end=period_end,
+            issue_date=datetime.now().date(),
+            due_date=(datetime.now() + timedelta(days=15)).date()
+        )
+
+        # Linea de plan base
+        base_item = InvoiceLineItem(
+            invoice_id=invoice.id,
+            description=f"Plan {subscription.plan.title()} - {period_start.strftime('%B %Y')}",
+            item_type='base_plan',
+            quantity=1,
+            unit_price=subscription.base_price,
+            amount=subscription.base_price
+        )
+
+        # Calcular overages
+        revenue_service = RevenueService()
+        overages = await revenue_service.calculate_overages(subscription.tenant_id)
+
+        overage_items = []
+        for overage in overages['overages']:
+            item = InvoiceLineItem(
+                invoice_id=invoice.id,
+                description=overage['description'],
+                item_type=f"{overage['type']}_overage",
+                quantity=overage['excess'],
+                unit_price=int(overage['cost'] / overage['excess']),
+                amount=overage['cost']
+            )
+            overage_items.append(item)
+
+        # Calcular totales
+        subtotal = subscription.base_price + overages['total_overage_cost']
+        tax = int(subtotal * 0.19)  # IVA 19%
+        total = subtotal + tax
+
+        invoice.subtotal = subtotal
+        invoice.tax = tax
+        invoice.total = total
+        invoice.amount_due = total
+
+        # Guardar en BD
+        await db.add(invoice)
+        await db.add(base_item)
+        for item in overage_items:
+            await db.add(item)
+
+        await db.commit()
+
+        # Enviar factura por email
+        await self._send_invoice_email(invoice)
+
+        # Actualizar proxima fecha de billing
+        subscription.billing_period_start = period_end + timedelta(days=1)
+        subscription.billing_period_end = subscription.billing_period_start + timedelta(days=30)
+        subscription.next_billing_date = subscription.billing_period_end
+
+        await db.commit()
+
+        logger.info(f"Generated invoice {invoice_number} for tenant {subscription.tenant_id}")
+
+        return invoice
+```
+
+**Ejemplo: Dashboard de Ingresos**
+
+```python
+# backend/app/modules/billing/revenue_service.py
+
+class RevenueService:
+    """Servicio para analisis de ingresos."""
+
+    async def get_revenue_summary(
+        self,
+        from_date: datetime,
+        to_date: datetime
+    ) -> Dict:
+        """Obtiene resumen de ingresos con KPIs principales."""
+
+        # MRR actual
+        mrr_result = await db.query(
+            func.sum(Subscription.base_price).label('mrr'),
+            func.count(Subscription.id).label('count')
+        ).filter(
+            Subscription.status == 'active'
+        ).first()
+
+        current_mrr = mrr_result.mrr or 0
+        active_subs = mrr_result.count or 0
+
+        # Total revenue del periodo (incluye overages)
+        revenue_result = await db.query(
+            func.sum(Invoice.total).label('total')
+        ).filter(
+            Invoice.status == 'paid',
+            Invoice.paid_at >= from_date,
+            Invoice.paid_at <= to_date
+        ).first()
+
+        total_revenue = revenue_result.total or 0
+
+        # Calcular revenue de overages
+        overage_result = await db.query(
+            func.sum(InvoiceLineItem.amount).label('total')
+        ).join(Invoice).filter(
+            InvoiceLineItem.item_type.in_(['memory_overage', 'token_overage', 'user_overage']),
+            Invoice.status == 'paid',
+            Invoice.paid_at >= from_date,
+            Invoice.paid_at <= to_date
+        ).first()
+
+        overage_revenue = overage_result.total or 0
+        base_revenue = total_revenue - overage_revenue
+
+        # Nuevas y canceladas
+        new_subs = await db.query(func.count(Subscription.id)).filter(
+            Subscription.created_at >= from_date,
+            Subscription.created_at <= to_date
+        ).scalar()
+
+        canceled_subs = await db.query(func.count(Subscription.id)).filter(
+            Subscription.canceled_at >= from_date,
+            Subscription.canceled_at <= to_date
+        ).scalar()
+
+        # Churn rate
+        churn_rate = (canceled_subs / active_subs * 100) if active_subs > 0 else 0
+
+        # ARPT (Average Revenue Per Tenant)
+        arpt = total_revenue / active_subs if active_subs > 0 else 0
+
+        # Distribucion por plan
+        by_plan = await db.query(
+            Subscription.plan,
+            func.count(Subscription.id).label('count'),
+            func.sum(Subscription.base_price).label('mrr')
+        ).filter(
+            Subscription.status == 'active'
+        ).group_by(Subscription.plan).all()
+
+        return {
+            'period': {
+                'from': from_date.isoformat(),
+                'to': to_date.isoformat()
+            },
+            'metrics': {
+                'mrr': current_mrr,
+                'arr': current_mrr * 12,
+                'total_revenue': total_revenue,
+                'base_revenue': base_revenue,
+                'overage_revenue': overage_revenue,
+                'active_subscriptions': active_subs,
+                'new_subscriptions': new_subs,
+                'canceled_subscriptions': canceled_subs,
+                'churn_rate': round(churn_rate, 2),
+                'average_revenue_per_tenant': int(arpt)
+            },
+            'by_plan': {
+                plan.plan: {
+                    'count': plan.count,
+                    'mrr': plan.mrr
+                }
+                for plan in by_plan
+            }
+        }
+
+    async def get_revenue_by_tenant(
+        self,
+        from_date: datetime,
+        to_date: datetime,
+        page: int = 1,
+        per_page: int = 20
+    ) -> Dict:
+        """Obtiene ingresos desglosados por tenant."""
+
+        # Query compleja con JOIN
+        query = db.query(
+            Tenant.id,
+            Tenant.name,
+            Subscription.plan,
+            Subscription.base_price.label('mrr'),
+            func.sum(Invoice.total).label('total_revenue'),
+            func.sum(
+                case(
+                    (InvoiceLineItem.item_type == 'base_plan', InvoiceLineItem.amount),
+                    else_=0
+                )
+            ).label('base_revenue'),
+            func.sum(
+                case(
+                    (InvoiceLineItem.item_type.in_(['memory_overage', 'token_overage']), InvoiceLineItem.amount),
+                    else_=0
+                )
+            ).label('overage_revenue')
+        ).join(Subscription).join(Invoice).join(InvoiceLineItem).filter(
+            Invoice.status == 'paid',
+            Invoice.paid_at >= from_date,
+            Invoice.paid_at <= to_date
+        ).group_by(
+            Tenant.id,
+            Tenant.name,
+            Subscription.plan,
+            Subscription.base_price
+        ).order_by(
+            func.sum(Invoice.total).desc()
+        ).offset((page - 1) * per_page).limit(per_page)
+
+        tenants = await query.all()
+
+        return {
+            'tenants': [
+                {
+                    'tenant_id': str(t.id),
+                    'tenant_name': t.name,
+                    'plan': t.plan,
+                    'mrr': t.mrr,
+                    'total_revenue': t.total_revenue,
+                    'base_revenue': t.base_revenue,
+                    'overage_revenue': t.overage_revenue
+                }
+                for t in tenants
+            ],
+            'page': page,
+            'per_page': per_page
+        }
+```
+
+**Tests:**
+- `test_create_subscription`
+- `test_upgrade_plan`
+- `test_downgrade_plan`
+- `test_cancel_subscription`
+- `test_generate_invoice`
+- `test_calculate_overages`
+- `test_revenue_summary`
+- `test_revenue_by_tenant`
+- `test_payment_failure_alert`
+- `test_upsell_opportunity_detection`
+
+**Documentacion Detallada:**
+Ver [docs/REVENUE_CONTROL.md](docs/REVENUE_CONTROL.md) para documentacion completa del sistema de control de ingresos.
 
 ---
 
