@@ -1,0 +1,35 @@
+[Unit]
+Description=AIPanel Celery Worker
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=forking
+User=aipanel
+Group=aipanel
+WorkingDirectory=/var/www/aipanel/backend
+
+# Virtual environment
+Environment="PATH=/var/www/aipanel/backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/var/www/aipanel/backend"
+
+# Configuración
+EnvironmentFile=/var/www/aipanel/backend/.env
+
+# Comando de ejecución
+ExecStart=/var/www/aipanel/backend/venv/bin/celery \
+    -A app.celery worker \
+    --loglevel=info \
+    --concurrency=2 \
+    --logfile=/var/log/aipanel/celery-worker.log \
+    --pidfile=/var/run/aipanel/celery-worker.pid
+
+# Restart
+Restart=always
+RestartSec=10
+
+# Límites
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

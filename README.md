@@ -80,19 +80,22 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 ├── docs/                 # Documentación
 ```
 
-## 🛠️ Stack Tecnológico
+## 🛠️ Stack Tecnológico (Python-First)
 
-### Backend
-- **Framework**: NestJS + TypeScript
+### Backend (100% Python)
+- **Framework**: FastAPI + Uvicorn
+- **Lenguaje**: Python 3.11
 - **Base de Datos**: PostgreSQL 15+
-- **ORM**: Prisma
-- **Cache**: Redis
-- **Queue**: Bull (Redis-based)
-- **Auth**: JWT + Passport
-- **Process Manager**: PM2
+- **ORM**: SQLAlchemy 2.0 + Alembic
+- **Validación**: Pydantic v2
+- **Cache**: Redis 7+
+- **Tasks**: Celery + Redis
+- **Auth**: python-jose + passlib
+- **App Server**: Gunicorn + Uvicorn workers
 
 ### Frontend
 - **Framework**: Next.js 14+ (App Router)
+- **Lenguaje**: TypeScript
 - **UI**: Tailwind CSS + Shadcn/ui
 - **Estado**: Zustand
 - **Charts**: Recharts
@@ -102,23 +105,31 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 - **Reverse Proxy**: Nginx
 - **SSL**: Let's Encrypt (Certbot)
 - **Deployment**: Nativo (sin Docker)
-- **Gestión de Procesos**: PM2 con clustering
+- **Process Manager**: Systemd (nativo Linux)
+- **Monitoring**: Prometheus + Sentry
 
 ### Servicios Externos
-- **Pagos**: Stripe / Mercadopago
-- **AI**: OpenAI API, Anthropic API
-- **Storage**: AWS S3 / MinIO
-- **Email**: SendGrid / Resend
+- **Pagos**: Stripe (stripe-python)
+- **AI**: OpenAI SDK + Anthropic SDK (oficiales)
+- **Storage**: boto3 (AWS S3)
+- **Email**: SendGrid o Resend
 
-## 🎯 Por Qué Sin Docker
+## 🎯 Por Qué Python + Sin Docker
 
-Este proyecto está optimizado para correr **directamente en el VPS** sin Docker:
+Este proyecto usa **Python para el backend** y **deployment nativo**:
 
-- ✅ **Menor consumo de recursos**: Ahorra ~200-300MB RAM y CPU
-- ✅ **Más eficiente**: Ideal para 2-3 aplicaciones por servidor
-- ✅ **Más simple**: Debugging directo, sin capas de contenedores
-- ✅ **Acceso directo**: Logs, procesos y bases de datos accesibles inmediatamente
-- ✅ **PM2**: Gestión profesional de procesos con auto-restart y clustering
+**Python-First:**
+- ✅ **Mejor para AI**: Ecosistema nativo de OpenAI/Anthropic
+- ✅ **Type-Safe**: Pydantic + mypy = validación robusta
+- ✅ **Maduro**: Librerías probadas en producción
+- ✅ **Performance**: FastAPI tan rápido como Node.js
+- ✅ **Menos Fragmentación**: Un solo lenguaje para backend
+
+**Sin Docker:**
+- ✅ **Menor consumo de recursos**: Ahorra ~200-300MB RAM
+- ✅ **Más eficiente**: Ideal para 2-3 apps por servidor
+- ✅ **Más simple**: Debugging directo, sin capas
+- ✅ **Systemd**: Gestor nativo de Linux, muy eficiente
 
 ## 🚦 Getting Started
 
@@ -180,12 +191,12 @@ sudo certbot --nginx -d aipanel.tudominio.com -d api.aipanel.tudominio.com
 - Backend API: https://api.aipanel.tudominio.com
 - API Docs: https://api.aipanel.tudominio.com/api/docs
 
-### Gestión con PM2
+### Gestión con Systemd
 ```bash
-pm2 list              # Ver procesos
-pm2 logs              # Ver logs en tiempo real
-pm2 monit             # Monitor interactivo
-pm2 restart all       # Reiniciar todos los procesos
+sudo systemctl status aipanel-api      # Ver estado
+sudo journalctl -u aipanel-api -f      # Ver logs en tiempo real
+sudo systemctl restart aipanel-api     # Reiniciar servicio
+sudo systemctl status 'aipanel-*'      # Ver todos los servicios
 ```
 
 ## 📊 Modelos AI Soportados
@@ -219,6 +230,8 @@ pm2 restart all       # Reiniciar todos los procesos
 ## 📖 Documentación
 
 - [Guía de Deployment](./docs/DEPLOYMENT.md) - **IMPORTANTE: Lee esto primero**
+- [Stack Tecnológico Python](./docs/architecture/TECH_STACK.md) - Decisiones técnicas
+- [Arquitectura de Autenticación](./docs/architecture/AUTHENTICATION.md)
 - [Arquitectura del Sistema](./docs/architecture/ARCHITECTURE.md)
 - [API Reference](./docs/api/API.md)
 - [Guía de Modelos AI](./docs/AI_MODELS.md)

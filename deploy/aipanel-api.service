@@ -1,0 +1,45 @@
+[Unit]
+Description=AIPanel FastAPI Backend
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=notify
+User=aipanel
+Group=aipanel
+WorkingDirectory=/var/www/aipanel/backend
+
+# Virtual environment
+Environment="PATH=/var/www/aipanel/backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/var/www/aipanel/backend"
+
+# Configuración de la aplicación
+EnvironmentFile=/var/www/aipanel/backend/.env
+
+# Comando de ejecución
+ExecStart=/var/www/aipanel/backend/venv/bin/gunicorn \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --access-logfile /var/log/aipanel/api-access.log \
+    --error-logfile /var/log/aipanel/api-error.log \
+    --log-level info \
+    app.main:app
+
+# Restart
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+StartLimitInterval=60
+
+# Límites de recursos
+LimitNOFILE=65536
+MemoryLimit=1G
+
+# Seguridad
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

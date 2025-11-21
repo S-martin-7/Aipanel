@@ -1,13 +1,14 @@
 #!/bin/bash
 
-# Script de instalación de AIPanel (sin Docker)
+# Script de instalación de AIPanel (Python Backend + Next.js Frontend)
 # Ejecutar con: bash install.sh
 
 set -e
 
 echo "================================================"
 echo "  AIPanel - Instalación en VPS"
-echo "  Sin Docker - Instalación Nativa"
+echo "  Backend: Python 3.11 + FastAPI"
+echo "  Frontend: Next.js"
 echo "================================================"
 echo ""
 
@@ -18,7 +19,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 # Verificar que estamos en el directorio correcto
-if [ ! -f "package.json" ] && [ ! -d "backend" ]; then
+if [ ! -d "backend" ] && [ ! -d "frontend" ]; then
     echo -e "${RED}Error: Ejecuta este script desde el directorio raíz del proyecto${NC}"
     exit 1
 fi
@@ -27,6 +28,12 @@ fi
 if [ "$EUID" -eq 0 ]; then
     echo -e "${YELLOW}Advertencia: Ejecutando como root${NC}"
     echo "Se recomienda crear un usuario específico para la aplicación"
+    read -p "¿Deseas crear un usuario 'aipanel'? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        sudo useradd -m -s /bin/bash aipanel
+        echo -e "${GREEN}Usuario 'aipanel' creado${NC}"
+    fi
 fi
 
 echo "==> Paso 1: Instalando dependencias del sistema"
@@ -35,9 +42,27 @@ echo ""
 # Actualizar repositorios
 sudo apt update
 
-# Instalar Node.js 20.x si no está instalado
+# Instalar Python 3.11 si no está instalado
+if ! command -v python3.11 &> /dev/null; then
+    echo "Instalando Python 3.11..."
+    sudo apt install -y software-properties-common
+    sudo add-apt-repository -y ppa:deadsnakes/ppa
+    sudo apt update
+    sudo apt install -y python3.11 python3.11-venv python3.11-dev
+else
+    PYTHON_VERSION=$(python3.11 --version)
+    echo "Python 3.11 ya instalado: $PYTHON_VERSION"
+fi
+
+# Instalar pip
+if ! python3.11 -m pip --version &> /dev/null; then
+    echo "Instalando pip para Python 3.11..."
+    curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.11
+fi
+
+# Instalar Node.js 20.x (solo para el frontend)
 if ! command -v node &> /dev/null; then
-    echo "Instalando Node.js 20.x..."
+    echo "Instalando Node.js 20.x (para el frontend)..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt install -y nodejs
 else
@@ -75,14 +100,9 @@ else
     echo "Nginx ya instalado"
 fi
 
-# Instalar PM2 globalmente si no está instalado
-if ! command -v pm2 &> /dev/null; then
-    echo "Instalando PM2..."
-    sudo npm install -g pm2
-    pm2 startup systemd -u $USER --hp $HOME
-else
-    echo "PM2 ya instalado"
-fi
+# Instalar herramientas de compilación (necesarias para algunas deps de Python)
+echo "Instalando herramientas de compilación..."
+sudo apt install -y build-essential libpq-dev
 
 echo ""
 echo "==> Paso 2: Configurando base de datos PostgreSQL"
@@ -132,21 +152,44 @@ if [ ! -z "$REDIS_PASSWORD" ]; then
 fi
 
 echo ""
-echo "==> Paso 4: Instalando dependencias del proyecto"
+echo "==> Paso 4: Configurando Backend (Python)"
 echo ""
+
+# Crear directorio de logs
+sudo mkdir -p /var/log/aipanel
+sudo mkdir -p /var/run/aipanel
+sudo chown -R $(whoami):$(whoami) /var/log/aipanel /var/run/aipanel
 
 # Instalar dependencias del backend
 if [ -d "backend" ]; then
-    echo "Instalando dependencias del backend..."
+    echo "Configurando virtual environment para Python..."
     cd backend
-    npm install
 
-    # Generar Prisma Client
-    npx prisma generate
+    # Crear virtual environment
+    python3.11 -m venv venv
 
+    # Activar virtual environment
+    source venv/bin/activate
+
+    # Upgrade pip
+    pip install --upgrade pip
+
+    # Instalar dependencias
+    echo "Instalando dependencias de Python..."
+    pip install -r requirements.txt
+
+    # Copiar .env al backend
+    cp ../.env .env
+
+    deactivate
     cd ..
-    echo -e "${GREEN}✓ Backend instalado${NC}"
+
+    echo -e "${GREEN}✓ Backend Python configurado${NC}"
 fi
+
+echo ""
+echo "==> Paso 5: Configurando Frontend (Next.js)"
+echo ""
 
 # Instalar dependencias del frontend
 if [ -d "frontend" ]; then
@@ -158,18 +201,23 @@ if [ -d "frontend" ]; then
 fi
 
 echo ""
-echo "==> Paso 5: Ejecutando migraciones de base de datos"
+echo "==> Paso 6: Ejecutando migraciones de base de datos"
 echo ""
 
 cd backend
-npx prisma migrate deploy
+source venv/bin/activate
 
-# Preguntar si cargar datos de prueba
-read -p "¿Deseas cargar datos iniciales de prueba? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    npx prisma db seed
+# Inicializar Alembic si es necesario
+if [ ! -f "alembic.ini" ]; then
+    echo "Inicializando Alembic..."
+    alembic init alembic
 fi
+
+# Ejecutar migraciones
+echo "Ejecutando migraciones..."
+alembic upgrade head
+
+deactivate
 cd ..
 
 echo ""
@@ -186,13 +234,13 @@ echo "   - STRIPE_SECRET_KEY"
 echo "   - AWS credentials"
 echo "   - Dominios (FRONTEND_URL, NEXT_PUBLIC_API_URL)"
 echo ""
-echo "2. Construir las aplicaciones:"
-echo "   cd backend && npm run build"
-echo "   cd frontend && npm run build"
+echo "2. Ejecutar el script de deployment:"
+echo "   bash deploy.sh"
 echo ""
-echo "3. Iniciar con PM2:"
-echo "   pm2 start ecosystem.config.js"
-echo "   pm2 save"
+echo "3. Los servicios se gestionan con systemd:"
+echo "   sudo systemctl status aipanel-api"
+echo "   sudo systemctl status aipanel-worker"
+echo "   sudo systemctl status aipanel-frontend"
 echo ""
 echo "4. Configurar Nginx (ver docs/DEPLOYMENT.md)"
 echo ""

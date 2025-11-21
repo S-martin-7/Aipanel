@@ -1,0 +1,28 @@
+[Unit]
+Description=AIPanel Next.js Frontend
+After=network.target aipanel-api.service
+Wants=aipanel-api.service
+
+[Service]
+Type=simple
+User=aipanel
+Group=aipanel
+WorkingDirectory=/var/www/aipanel/frontend
+
+# Variables de entorno
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+Environment="HOSTNAME=0.0.0.0"
+
+# Comando de ejecución (Next.js standalone)
+ExecStart=/usr/bin/node /var/www/aipanel/frontend/.next/standalone/server.js
+
+# Restart
+Restart=always
+RestartSec=10
+
+# Límites
+MemoryLimit=512M
+
+[Install]
+WantedBy=multi-user.target

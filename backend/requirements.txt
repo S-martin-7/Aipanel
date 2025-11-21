@@ -1,0 +1,78 @@
+# AIPanel Backend - Python Dependencies
+# Framework Web
+fastapi[all]==0.109.0
+uvicorn[standard]==0.27.0
+gunicorn==21.2.0
+
+# Base de Datos
+sqlalchemy[asyncio]==2.0.25
+alembic==1.13.1
+psycopg[binary,pool]==3.1.18
+asyncpg==0.29.0
+
+# Validación y Configuración
+pydantic[email]==2.5.3
+pydantic-settings==2.1.0
+
+# Autenticación y Seguridad
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Tareas Asíncronas
+celery[redis]==5.3.6
+flower==2.0.1
+
+# Caché y Sesiones
+redis[hiredis]==5.0.1
+
+# AI SDKs
+openai==1.10.0
+anthropic==0.18.0
+
+# Sistema de Pagos
+stripe==8.2.0
+
+# Almacenamiento
+boto3==1.34.34
+botocore==1.34.34
+
+# Email
+sendgrid==6.11.0
+
+# Utilities
+python-dotenv==1.0.0
+httpx==0.26.0
+tenacity==8.2.3
+python-dateutil==2.8.2
+
+# Rate Limiting
+slowapi==0.1.9
+
+# Monitoring y Observabilidad
+prometheus-client==0.19.0
+sentry-sdk[fastapi]==1.40.0
+
+# CORS
+python-cors==1.0.0
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+faker==22.4.0
+httpx==0.26.0
+
+# Type Checking
+mypy==1.8.0
+types-redis==4.6.0.20240106
+types-python-jose==3.3.4.20240106
+
+# Code Quality
+ruff==0.1.14
+black==24.1.1
+
+# Utils
+click==8.1.7
+orjson==3.9.13
