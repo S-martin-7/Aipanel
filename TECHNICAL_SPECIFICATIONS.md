@@ -10,10 +10,11 @@
 1. [Especificaciones de Base de Datos](#1-especificaciones-de-base-de-datos)
 2. [Especificaciones de API](#2-especificaciones-de-api)
 3. [Especificaciones de Autenticacion](#3-especificaciones-de-autenticacion)
-4. [Especificaciones de Modulos](#4-especificaciones-de-modulos)
-5. [Integraciones Externas](#5-integraciones-externas)
-6. [Tareas Asincronas](#6-tareas-asincronas)
-7. [Frontend Specifications](#7-frontend-specifications)
+4. [Tenant Isolation (Aislamiento de Tenants)](#4-tenant-isolation-aislamiento-de-tenants)
+5. [Especificaciones de Modulos](#5-especificaciones-de-modulos)
+6. [Integraciones Externas](#6-integraciones-externas)
+7. [Tareas Asincronas](#7-tareas-asincronas)
+8. [Frontend Specifications](#8-frontend-specifications)
 
 ---
 
@@ -384,7 +385,526 @@ is_valid = pwd_context.verify("plain_password", hashed)
 
 ---
 
-## 4. ESPECIFICACIONES DE MODULOS
+## 4. TENANT ISOLATION (AISLAMIENTO DE TENANTS)
+
+### Resumen
+
+AIPanel es una plataforma **multi-tenant** donde cada cliente (tenant) debe tener sus datos completamente aislados de otros clientes. El aislamiento se implementa en multiples capas: base de datos, API, almacenamiento, cache, procesamiento y logs.
+
+### 4.1. Aislamiento a Nivel de Base de Datos
+
+**Estrategia: Shared Database + Discriminator Column**
+
+Todas las tablas que contienen datos de tenants incluyen la columna `tenant_id`:
+
+```sql
+-- Ejemplo: tabla agents
+CREATE TABLE agents (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    name VARCHAR(255),
+    model VARCHAR(50),
+    -- ...
+    CONSTRAINT fk_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+-- Indice para optimizar queries por tenant
+CREATE INDEX idx_agents_tenant_id ON agents(tenant_id);
+
+-- Similar para todas las tablas multi-tenant
+CREATE INDEX idx_documents_tenant_id ON documents(tenant_id);
+CREATE INDEX idx_chats_tenant_id ON chats(tenant_id);
+CREATE INDEX idx_messages_tenant_id ON messages(tenant_id);
+CREATE INDEX idx_usage_logs_tenant_id ON usage_logs(tenant_id);
+```
+
+**Todas las queries DEBEN incluir tenant_id:**
+
+```python
+# CORRECTO
+agents = await db.query(Agent).filter(
+    Agent.tenant_id == current_tenant_id
+).all()
+
+# INCORRECTO - Falta filtro por tenant
+agents = await db.query(Agent).all()  # DANGER: Expone datos de otros tenants
+```
+
+### 4.2. Row-Level Security (RLS) - Opcional
+
+Para mayor seguridad, se puede implementar RLS en PostgreSQL:
+
+```sql
+-- Habilitar RLS en tablas
+ALTER TABLE agents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chats ENABLE ROW LEVEL SECURITY;
+
+-- Politica: Solo ver registros del propio tenant
+CREATE POLICY tenant_isolation_policy ON agents
+    USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+
+CREATE POLICY tenant_isolation_policy ON documents
+    USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+
+-- En cada request, configurar tenant_id
+-- (esto se hace en middleware)
+await db.execute(
+    f"SET LOCAL app.current_tenant_id = '{tenant_id}'"
+)
+```
+
+**Ventajas de RLS:**
+- Proteccion a nivel de BD (incluso si el codigo tiene bugs)
+- Imposible acceder a datos de otros tenants desde SQL
+
+**Desventajas:**
+- Overhead adicional (~5-10% performance)
+- Complejidad adicional en debugging
+
+**Recomendacion:** Implementar RLS en produccion para plan Enterprise.
+
+### 4.3. Aislamiento a Nivel de API
+
+**Middleware de Tenant Injection:**
+
+Todos los requests autenticados deben inyectar el `tenant_id` del usuario en el contexto del request:
+
+```python
+# backend/app/middleware/tenant_middleware.py
+
+from fastapi import Request
+from app.core.auth import get_current_user
+
+async def tenant_isolation_middleware(request: Request, call_next):
+    """Middleware que inyecta tenant_id en el request."""
+
+    # Obtener usuario del token JWT
+    user = await get_current_user(request)
+
+    if user:
+        # Usuarios nivel 2 (tenant_users) tienen tenant_id
+        if hasattr(user, 'tenant_id'):
+            request.state.tenant_id = user.tenant_id
+
+        # Usuarios nivel 1 (admins) NO tienen tenant_id
+        else:
+            request.state.tenant_id = None
+
+    response = await call_next(request)
+    return response
+```
+
+**Dependency para extraer tenant_id:**
+
+```python
+# backend/app/core/dependencies.py
+
+from fastapi import Depends, HTTPException, status, Request
+
+async def get_current_tenant_id(request: Request) -> str:
+    """Extrae tenant_id del request (inyectado por middleware)."""
+
+    tenant_id = getattr(request.state, 'tenant_id', None)
+
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenant context available"
+        )
+
+    return tenant_id
+```
+
+**Uso en endpoints:**
+
+```python
+# backend/app/modules/agents/router.py
+
+from app.core.dependencies import get_current_tenant_id
+
+@router.get("/agents")
+async def list_agents(
+    tenant_id: str = Depends(get_current_tenant_id),
+    service: AgentService = Depends()
+):
+    """Lista agentes del tenant actual."""
+    return await service.list_agents(tenant_id)
+```
+
+### 4.4. Aislamiento en Almacenamiento (S3)
+
+Los archivos subidos por cada tenant se almacenan en paths separados:
+
+```
+s3://aipanel-documents/
+  ├── tenant_<tenant_id_1>/
+  │   ├── documents/
+  │   │   ├── <document_id>.pdf
+  │   │   ├── <document_id>.png
+  │   ├── agents/
+  │   │   ├── <agent_id>/
+  │   │   │   ├── <file_id>.pdf
+  │   ├── exports/
+  │       ├── <export_id>.zip
+  ├── tenant_<tenant_id_2>/
+      ├── documents/
+      │   ├── ...
+```
+
+**Generacion de paths con tenant_id:**
+
+```python
+# backend/app/core/storage.py
+
+def get_s3_path(tenant_id: str, file_type: str, file_id: str, extension: str) -> str:
+    """Genera path de S3 con aislamiento por tenant."""
+    return f"tenant_{tenant_id}/{file_type}/{file_id}.{extension}"
+
+# Ejemplo
+path = get_s3_path(tenant_id="123", file_type="documents", file_id="doc_456", extension="pdf")
+# Resultado: "tenant_123/documents/doc_456.pdf"
+```
+
+**Pre-signed URLs con validacion:**
+
+```python
+def get_presigned_url(s3_path: str, tenant_id: str, expires_in: int = 3600) -> str:
+    """Genera URL firmada validando que el path pertenece al tenant."""
+
+    # Validar que el path comienza con tenant_id correcto
+    if not s3_path.startswith(f"tenant_{tenant_id}/"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to resource"
+        )
+
+    url = s3_client.generate_presigned_url(
+        'get_object',
+        Params={'Bucket': settings.S3_BUCKET_NAME, 'Key': s3_path},
+        ExpiresIn=expires_in
+    )
+
+    return url
+```
+
+### 4.5. Aislamiento en Cache (Redis)
+
+Las claves de Redis deben incluir el `tenant_id` como prefijo:
+
+```python
+# backend/app/core/cache.py
+
+import redis
+from app.core.config import settings
+
+redis_client = redis.from_url(settings.REDIS_URL)
+
+def cache_key(tenant_id: str, key_type: str, identifier: str) -> str:
+    """Genera clave de Redis con tenant isolation."""
+    return f"tenant:{tenant_id}:{key_type}:{identifier}"
+
+# Ejemplo de uso
+def get_agent_from_cache(tenant_id: str, agent_id: str):
+    """Obtiene agente desde cache."""
+    key = cache_key(tenant_id, "agent", agent_id)
+    data = redis_client.get(key)
+    return json.loads(data) if data else None
+
+def set_agent_cache(tenant_id: str, agent_id: str, data: dict, ttl: int = 3600):
+    """Guarda agente en cache."""
+    key = cache_key(tenant_id, "agent", agent_id)
+    redis_client.setex(key, ttl, json.dumps(data))
+```
+
+**Estructura de claves:**
+```
+tenant:123:agent:456            # Agente 456 del tenant 123
+tenant:123:chat:789             # Chat 789 del tenant 123
+tenant:123:usage:2025-01        # Uso del tenant 123 en enero 2025
+tenant:456:agent:789            # Agente 789 del tenant 456 (diferente)
+```
+
+### 4.6. Aislamiento en Tareas Asincronas (Celery)
+
+Todas las tareas Celery deben recibir `tenant_id` como parametro:
+
+```python
+# backend/app/modules/documents/tasks.py
+
+from app.core.celery import celery_app
+
+@celery_app.task(name="process_document")
+def process_document_task(document_id: str, tenant_id: str):
+    """Procesa documento asegurandose de usar tenant_id correcto."""
+
+    logger.info(f"Processing document {document_id} for tenant {tenant_id}")
+
+    # Cargar documento
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.tenant_id == tenant_id  # IMPORTANTE: Validar tenant
+    ).first()
+
+    if not document:
+        logger.error(f"Document {document_id} not found for tenant {tenant_id}")
+        return
+
+    # Procesar...
+    # ...
+```
+
+**Al lanzar tareas:**
+
+```python
+# En el servicio
+from app.modules.documents.tasks import process_document_task
+
+def upload_document(file: UploadFile, tenant_id: str, agent_id: str):
+    # ... guardar documento ...
+
+    # Lanzar tarea con tenant_id
+    process_document_task.delay(
+        document_id=str(document.id),
+        tenant_id=tenant_id  # Pasar tenant_id explicitamente
+    )
+```
+
+### 4.7. Aislamiento en Logs y Auditoria
+
+Todos los logs deben incluir `tenant_id` para auditoria:
+
+```python
+# backend/app/utils/logger.py
+
+import logging
+from pythonjsonlogger import jsonlogger
+
+# Configurar logger con formato JSON
+logger = logging.getLogger("aipanel")
+handler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter(
+    "%(asctime)s %(name)s %(levelname)s %(message)s %(tenant_id)s %(user_id)s"
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+# Uso en servicios
+def log_action(tenant_id: str, user_id: str, action: str, details: dict):
+    """Log de accion con contexto de tenant."""
+    logger.info(
+        action,
+        extra={
+            'tenant_id': tenant_id,
+            'user_id': user_id,
+            'details': details
+        }
+    )
+```
+
+**Tabla de auditoria:**
+
+```sql
+CREATE TABLE audit_logs (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    user_id UUID,  -- puede ser user o tenant_user
+    action VARCHAR(100) NOT NULL,  -- 'agent.created', 'document.uploaded', etc
+    resource_type VARCHAR(50),     -- 'agent', 'document', 'chat'
+    resource_id UUID,
+    details JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_audit_logs_tenant_id ON audit_logs(tenant_id);
+CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
+```
+
+### 4.8. Rate Limiting por Tenant
+
+Cada tenant tiene limites de requests por minuto segun su plan:
+
+```python
+# backend/app/middleware/rate_limit_middleware.py
+
+from fastapi import HTTPException, status
+from app.core.cache import redis_client
+
+async def rate_limit_middleware(request: Request, call_next):
+    """Middleware de rate limiting por tenant."""
+
+    tenant_id = getattr(request.state, 'tenant_id', None)
+
+    if tenant_id:
+        # Obtener limite del plan del tenant
+        tenant = await get_tenant(tenant_id)
+        limit = get_rate_limit_for_plan(tenant.plan)  # ej: 20 req/min
+
+        # Clave de Redis para contador
+        key = f"ratelimit:tenant:{tenant_id}:minute"
+
+        # Incrementar contador
+        current = redis_client.incr(key)
+
+        # Establecer TTL de 60 segundos en primera request
+        if current == 1:
+            redis_client.expire(key, 60)
+
+        # Verificar limite
+        if current > limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Rate limit exceeded ({limit} requests/minute)"
+            )
+
+    response = await call_next(request)
+    return response
+
+def get_rate_limit_for_plan(plan: str) -> int:
+    """Retorna limite de requests por minuto segun plan."""
+    limits = {
+        'basico': 5,
+        'pro': 20,
+        'enterprise': 100
+    }
+    return limits.get(plan, 5)
+```
+
+### 4.9. Calculo de Uso por Tenant
+
+Sistema de metering para calcular uso de recursos:
+
+```python
+# backend/app/modules/usage/service.py
+
+from datetime import datetime
+from app.models import UsageLog
+
+async def track_usage(
+    tenant_id: str,
+    resource_type: str,  # 'tokens', 'storage', 'api_calls'
+    amount: int,
+    metadata: dict = None
+):
+    """Registra uso de recursos por tenant."""
+
+    usage_log = UsageLog(
+        tenant_id=tenant_id,
+        resource_type=resource_type,
+        amount=amount,
+        metadata=metadata,
+        timestamp=datetime.now()
+    )
+
+    await db.add(usage_log)
+    await db.commit()
+
+    # Actualizar cache de uso mensual
+    month_key = f"usage:tenant:{tenant_id}:{resource_type}:{datetime.now().strftime('%Y-%m')}"
+    redis_client.incr(month_key, amount)
+
+async def get_monthly_usage(tenant_id: str, resource_type: str) -> int:
+    """Obtiene uso mensual de un tenant."""
+
+    month_key = f"usage:tenant:{tenant_id}:{resource_type}:{datetime.now().strftime('%Y-%m')}"
+    cached = redis_client.get(month_key)
+
+    if cached:
+        return int(cached)
+
+    # Si no esta en cache, calcular desde BD
+    start_of_month = datetime.now().replace(day=1, hour=0, minute=0, second=0)
+
+    total = await db.query(func.sum(UsageLog.amount)).filter(
+        UsageLog.tenant_id == tenant_id,
+        UsageLog.resource_type == resource_type,
+        UsageLog.timestamp >= start_of_month
+    ).scalar()
+
+    return total or 0
+```
+
+### 4.10. Checklist de Tenant Isolation
+
+Al implementar nuevas features, verificar:
+
+- [ ] Todas las tablas multi-tenant tienen columna `tenant_id`
+- [ ] Todos los queries incluyen filtro por `tenant_id`
+- [ ] Los endpoints usan `get_current_tenant_id()` dependency
+- [ ] Los paths de S3 incluyen `tenant_<tenant_id>/`
+- [ ] Las claves de Redis incluyen `tenant:<tenant_id>:`
+- [ ] Las tareas Celery reciben `tenant_id` como parametro
+- [ ] Los logs incluyen `tenant_id` en contexto
+- [ ] Se valida que el usuario tiene acceso al tenant
+- [ ] Se aplica rate limiting por tenant
+- [ ] Se trackea uso de recursos por tenant
+
+### 4.11. Testing de Tenant Isolation
+
+**Test de aislamiento:**
+
+```python
+# backend/testing/test_tenant_isolation.py
+
+import pytest
+
+async def test_tenant_cannot_access_other_tenant_agents():
+    """Test que un tenant no puede ver agentes de otro tenant."""
+
+    # Crear dos tenants
+    tenant1 = await create_tenant("Tenant 1")
+    tenant2 = await create_tenant("Tenant 2")
+
+    # Crear agente para tenant1
+    agent1 = await create_agent(tenant_id=tenant1.id, name="Agent 1")
+
+    # Crear usuario de tenant2
+    user2 = await create_tenant_user(tenant_id=tenant2.id)
+
+    # Autenticar como usuario de tenant2
+    token = await login(user2.email, user2.password)
+
+    # Intentar acceder a agente de tenant1
+    response = client.get(
+        f"/api/v1/agents/{agent1.id}",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    # Debe retornar 403 o 404 (no 200)
+    assert response.status_code in [403, 404]
+
+async def test_tenant_can_only_see_own_documents():
+    """Test que un tenant solo ve sus propios documentos."""
+
+    tenant1 = await create_tenant("Tenant 1")
+    tenant2 = await create_tenant("Tenant 2")
+
+    # Crear documentos para ambos tenants
+    doc1 = await create_document(tenant_id=tenant1.id, name="Doc 1")
+    doc2 = await create_document(tenant_id=tenant2.id, name="Doc 2")
+
+    # Autenticar como tenant1
+    user1 = await create_tenant_user(tenant_id=tenant1.id)
+    token1 = await login(user1.email, user1.password)
+
+    # Listar documentos
+    response = client.get(
+        "/api/v1/documents",
+        headers={"Authorization": f"Bearer {token1}"}
+    )
+
+    documents = response.json()
+
+    # Solo debe ver doc1, no doc2
+    assert len(documents) == 1
+    assert documents[0]['id'] == str(doc1.id)
+```
+
+---
+
+## 5. ESPECIFICACIONES DE MODULOS
 
 ### Modulo: Auth
 
@@ -682,7 +1202,7 @@ async def track_usage(
 
 ---
 
-## 5. INTEGRACIONES EXTERNAS
+## 6. INTEGRACIONES EXTERNAS
 
 ### OpenAI Client
 
@@ -794,7 +1314,7 @@ Para almacenar documentos en S3.
 
 ---
 
-## 6. TAREAS ASINCRONAS
+## 7. TAREAS ASINCRONAS
 
 ### Celery Configuration
 
@@ -877,7 +1397,7 @@ def send_threshold_alert(tenant_id: str, threshold_type: str):
 
 ---
 
-## 7. FRONTEND SPECIFICATIONS
+## 8. FRONTEND SPECIFICATIONS
 
 ### Estructura de Rutas
 

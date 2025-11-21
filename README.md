@@ -36,6 +36,35 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 - Alertas de cuota y límites
 - Dashboard con gráficos interactivos
 
+## [!] Por Qué AIPanel vs ChatGPT Pro
+
+AIPanel no compite en modelos de IA (usamos GPT-4o, GPT-5-mini, Claude), sino en el **ecosistema empresarial, automatización, memoria persistente real e integraciones**.
+
+### Diferenciadores Clave
+
+1. **Memoria Persistente Real**: Ilimitada por tenant, cada agente tiene su propia memoria independiente medida en GB
+2. **Arquitectura Multi-Tenant**: Aislamiento completo entre clientes con API keys independientes y facturación por tenant
+3. **Agentes Autónomos**: Workers 24/7 en segundo plano, procesamiento asíncrono, tareas programadas
+4. **Integraciones Reales**: WhatsApp Business, SMS, Email, Asterisk/FreePBX, ERPs (Odoo, SAP), CRMs (Salesforce, HubSpot)
+5. **RAG Avanzado**: PDFs pesados (100+ MB), OCR integrado, extracción de tablas y gráficos, resúmenes automáticos multinivel
+6. **Modelos Personalizables**: Cada agente puede usar un modelo diferente con configuración de temperatura y max_tokens
+7. **Telefonía AI**: IVR con reconocimiento de voz, voice bots 24/7, grabación y transcripción de llamadas
+8. **Control Total de Datos**: Hosting local, cumplimiento con regulaciones locales, backups controlados
+9. **Facturación Local (Chile)**: Transbank, Khipu, facturación en CLP, facturación electrónica SII
+10. **Auditoría Empresarial**: Logs completos, métricas de uso por tenant/agente, reportes de costos, tracking de tokens
+11. **Automatización Empresarial**: Flujos de trabajo programables, triggers y acciones automáticas, procesamiento batch
+12. **Agentes Especializados**: Pre-configurados por industria (legal, salud, retail, educación, finanzas)
+
+### Casos de Uso Únicos
+
+- **Call Center AI 24/7**: Atender llamadas telefónicas, transferir a humanos, registrar en CRM
+- **Sistema Multi-Cliente**: Agencias que dan servicio a múltiples clientes con aislamiento total
+- **WhatsApp Bot Empresarial**: Responder consultas, tomar pedidos, actualizar CRM en tiempo real
+- **Integración ERP**: Consultar stock, crear órdenes de compra, actualizar inventario
+- **Auditoría Legal**: Revisar cientos de contratos, extraer cláusulas clave, generar matriz de riesgos
+
+Ver documentación completa en [docs/DIFFERENTIATORS.md](docs/DIFFERENTIATORS.md)
+
 ## [#] Arquitectura
 
 ```
@@ -220,26 +249,48 @@ sudo systemctl status 'aipanel-*'      # Ver todos los servicios
 ## [$] Sistema de Facturación
 
 ### Planes Disponibles
-- **Free**: $0 - 1K tokens/mes
-- **Starter**: $29 - 100K tokens/mes
-- **Professional**: $99 - 500K tokens/mes
-- **Business**: $299 - 2M tokens/mes
-- **Enterprise**: Personalizado
 
-### Reglas de Suspensión
-- Pago vencido > 7 días: Recordatorio automático
-- Pago vencido > 14 días: Suspensión automática
-- Cuota excedida: Throttling o suspensión (configurable)
-- Reactivación automática al pagar
+| Plan | Precio (CLP) | Memoria | Agentes | Tokens/Mes | Usuarios |
+|------|--------------|---------|---------|------------|----------|
+| **Básico** | $19,990 | 1 GB | 2 | 250K | 5 |
+| **Pro** | $49,990 | 5 GB | 10 | 1.5M | 25 |
+| **Enterprise** | Desde $199,000 | 20+ GB | Ilimitados | 10M+ | 100+ |
+
+### Características por Plan
+
+- **Básico**: Ideal para emprendedores y startups. Incluye API REST, webhooks básicos, 1 integración externa
+- **Pro**: Para empresas en crecimiento. RAG avanzado, telefonía AI (500 min), hasta 5 integraciones, soporte prioritario
+- **Enterprise**: Para grandes empresas. Agentes ilimitados, integraciones ilimitadas, soporte 24/7, SLA 99.9%
+
+### Métodos de Pago (Chile)
+- Transbank Webpay Plus (tarjetas chilenas)
+- Transferencia bancaria
+- Khipu (cuentas RUT)
+- Facturación electrónica automática (SII)
+
+Ver planes detallados en [docs/PRICING_PLANS.md](docs/PRICING_PLANS.md)
 
 ## [?] Documentación
 
+### Documentos Comerciales
+- [Diferenciadores vs ChatGPT Pro](./docs/DIFFERENTIATORS.md) - Por qué AIPanel es diferente
+- [Planes Comerciales](./docs/PRICING_PLANS.md) - Precios, features y add-ons detallados
+
+### Documentos Técnicos
 - [Guía de Deployment](./docs/DEPLOYMENT.md) - **IMPORTANTE: Lee esto primero**
+- [Especificaciones Técnicas](./TECHNICAL_SPECIFICATIONS.md) - Esquema completo del sistema
+- [Guía de Desarrollo](./DEVELOPMENT_GUIDE.md) - Cómo crear nuevos módulos
+- [Estructura del Proyecto](./PROJECT_STRUCTURE.md) - Arquitectura modular
+- [Onboarding de Desarrolladores](./DEVELOPER_ONBOARDING.md) - Primer día en el proyecto
+- [Asignación de Tareas](./TASK_ASSIGNMENTS.md) - Sprints y tareas detalladas
+
+### Arquitectura y Decisiones
 - [Stack Tecnológico Python](./docs/architecture/TECH_STACK.md) - Decisiones técnicas
 - [Arquitectura de Autenticación](./docs/architecture/AUTHENTICATION.md) - Multi-nivel
 - [Sistema de Tracking de Tokens](./docs/architecture/TOKEN_TRACKING.md) - Uso justo
 - [Sistemas de Pago Chile](./docs/architecture/PAYMENT_SYSTEMS_CHILE.md) - Transbank vs Khipu
 - [Estrategia de Memoria](./docs/architecture/MEMORY_STRATEGY.md) - Resúmenes vs Vector Stores
+- [Estrategia de Almacenamiento](./docs/architecture/STORAGE_STRATEGY.md) - S3 vs Base de Datos
 - [Análisis de Gaps](./docs/ANALYSIS_GAPS.md) - Estado del proyecto
 
 ## [!] Seguridad
