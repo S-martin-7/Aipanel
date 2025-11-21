@@ -273,13 +273,19 @@ model Tenant {
   gracePeriodDays           Int     @default(14)
 
   // Relaciones
-  server            Server        @relation(fields: [serverId], references: [id], onDelete: Cascade)
-  users             TenantUser[]  // Usuarios del tenant
+  server            Server               @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  users             TenantUser[]         // Usuarios del tenant
   agents            Agent[]
   dataSources       DataSource[]
   payments          Payment[]
   transactions      Transaction[]
   usageMetrics      UsageMetric[]
+
+  // Sistema de tracking de tokens
+  tokenUsage        TokenUsage[]
+  usageSummary      TenantUsageSummary[]
+  usageThresholds   UsageThreshold[]
+  usageAlerts       UsageAlert[]
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -336,6 +342,7 @@ model Agent {
   dataSources       DataSource[]
   conversations     Conversation[]
   usageMetrics      UsageMetric[]
+  tokenUsage        TokenUsage[]
 
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
@@ -393,8 +400,9 @@ model Conversation {
   title         String?
 
   // Relaciones
-  agent         Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agent         Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
   messages      Message[]
+  tokenUsage    TokenUsage[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -571,4 +579,181 @@ model StripeWebhook {
   createdAt     DateTime @default(now())
 
   @@map("stripe_webhooks")
+}
+
+// ============================================
+// SISTEMA DE TRACKING DE TOKENS
+// ============================================
+
+// Registro detallado de uso de tokens por request
+model TokenUsage {
+  id              String   @id @default(cuid())
+
+  // Identificadores
+  tenantId        String
+  agentId         String?
+  conversationId  String?
+
+  // Request info
+  requestId       String   @unique
+  endpoint        String   // '/api/agents/chat', '/api/agents/complete'
+  model           AIModel
+
+  // Tokens desglosados
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  reasoningTokens Int      @default(0)  // Solo para O-series
+  cachedTokens    Int      @default(0)  // Tokens en caché
+  totalTokens     Int      @default(0)
+
+  // Costos desglosados (en USD)
+  inputCost       Decimal  @db.Decimal(10, 6)
+  outputCost      Decimal  @db.Decimal(10, 6)
+  reasoningCost   Decimal  @db.Decimal(10, 6)
+  cacheCost       Decimal  @db.Decimal(10, 6)
+  totalCost       Decimal  @db.Decimal(10, 6)
+
+  // Metadata de la request
+  latencyMs       Int?     // Tiempo de respuesta en ms
+  success         Boolean  @default(true)
+  errorCode       String?
+  errorMessage    String?
+
+  // Timestamp
+  timestamp       DateTime @default(now())
+
+  // Relaciones
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent           Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, timestamp])
+  @@index([agentId, timestamp])
+  @@index([requestId])
+  @@index([timestamp])
+  @@map("token_usage")
+}
+
+// Resumen agregado de uso por día
+model TenantUsageSummary {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  date                DateTime // Día específico (fecha sin hora)
+
+  // Agregados del día
+  totalRequests       Int      @default(0)
+  successfulRequests  Int      @default(0)
+  failedRequests      Int      @default(0)
+
+  // Tokens totales del día
+  totalInputTokens    Int      @default(0)
+  totalOutputTokens   Int      @default(0)
+  totalReasoningTokens Int     @default(0)
+  totalCachedTokens   Int      @default(0)
+  totalTokens         Int      @default(0)
+
+  // Costos totales del día
+  totalCost           Decimal  @db.Decimal(10, 2)
+
+  // Por modelo (JSON)
+  modelBreakdown      Json     // { "gpt-5-mini": { tokens: 1000, cost: 0.5 }, ... }
+
+  // Relaciones
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([tenantId, date])
+  @@index([tenantId, date])
+  @@map("tenant_usage_summary")
+}
+
+// Umbrales de uso configurables por tenant
+model UsageThreshold {
+  id                  String   @id @default(cuid())
+  tenantId            String
+
+  // Tipo de límite
+  type                String   // 'daily', 'monthly', 'per_request'
+  name                String?  // Nombre descriptivo
+
+  // Límites
+  maxTokens           Int?     // Máximo de tokens
+  maxCost             Decimal? @db.Decimal(10, 2) // Máximo costo en USD
+  maxRequests         Int?     // Máximo número de requests
+
+  // Umbrales de alerta (porcentajes)
+  warningAt           Int      @default(75)  // % para warning
+  criticalAt          Int      @default(90)  // % para critical
+
+  // Acciones automáticas
+  throttleAt          Int?     // % para empezar throttling
+  suspendAt           Int?     // % para suspender
+
+  // Configuración de throttling
+  throttleDelay       Int?     // ms de delay por request
+  throttleMaxRequests Int?     // requests máximas por minuto cuando throttled
+
+  // Notificaciones
+  notifyEmail         Boolean  @default(true)
+  notifyDashboard     Boolean  @default(true)
+  notifyWebhook       Boolean  @default(false)
+  webhookUrl          String?
+
+  // Estado
+  isActive            Boolean  @default(true)
+
+  // Relaciones
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alerts              UsageAlert[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([tenantId, isActive])
+  @@map("usage_thresholds")
+}
+
+// Alertas específicas de uso de tokens
+model UsageAlert {
+  id              String   @id @default(cuid())
+  tenantId        String
+  thresholdId     String?
+
+  // Tipo de alerta
+  level           String   // 'info', 'warning', 'critical'
+  type            String   // 'threshold_exceeded', 'daily_limit', 'monthly_limit', 'cost_limit'
+
+  // Mensaje
+  title           String
+  message         String   @db.Text
+
+  // Datos del uso
+  currentUsage    Int      // Tokens usados o costo
+  limit           Int      // Límite configurado
+  percentage      Int      // % del límite alcanzado
+
+  // Metadata adicional
+  metadata        Json?
+
+  // Estado
+  isRead          Boolean  @default(false)
+  isResolved      Boolean  @default(false)
+  resolvedAt      DateTime?
+  resolvedBy      String?  // userId que resolvió
+
+  // Acciones tomadas automáticamente
+  actionTaken     String?  // 'email_sent', 'throttled', 'suspended', 'webhook_called'
+
+  // Relaciones
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  threshold       UsageThreshold? @relation(fields: [thresholdId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, isResolved, createdAt])
+  @@index([level, isResolved])
+  @@index([createdAt])
+  @@map("usage_alerts")
 }
