@@ -350,7 +350,7 @@ model Agent {
   @@map("agents")
 }
 
-// Fuentes de datos para agentes
+// Fuentes de datos para agentes (DEPRECATED - usar Document)
 model DataSource {
   id            String           @id @default(cuid())
   tenantId      String
@@ -375,7 +375,7 @@ model DataSource {
   processedAt   DateTime?
   errorMessage  String?
 
-  // Embeddings/Vector store
+  // Embeddings/Vector store (DEPRECATED - usar resúmenes)
   vectorStoreId String?
 
   // Relaciones
@@ -386,6 +386,130 @@ model DataSource {
   updatedAt     DateTime         @updatedAt
 
   @@map("data_sources")
+}
+
+// ============================================
+// SISTEMA DE RESÚMENES AUTOMÁTICOS
+// (Reemplazo simple y eficiente de vector stores)
+// ============================================
+
+// Documento original subido por el usuario
+model Document {
+  id              String   @id @default(cuid())
+  tenantId        String
+  agentId         String?
+
+  // Información básica
+  name            String
+  type            String   // 'pdf', 'url', 'docx', 'txt', 'image'
+
+  // Ubicación original
+  originalUrl     String?
+  s3Key           String?
+
+  // Contenido extraído (texto plano)
+  content         String   @db.Text
+  contentHash     String   @unique  // SHA256 para detectar duplicados
+
+  // Metadatos
+  size            Int      // Tamaño en bytes
+  mimeType        String?
+  metadata        Json?    // { author, date, pages, etc }
+
+  // Procesamiento
+  status          DataSourceStatus @default(PENDING)
+  processedAt     DateTime?
+  errorMessage    String?
+
+  // Relaciones
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chunks          DocumentChunk[]
+  summaries       DocumentSummary[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("documents")
+  @@index([tenantId, agentId])
+  @@index([contentHash])
+  @@index([status])
+}
+
+// Chunks del documento (división inteligente)
+model DocumentChunk {
+  id              String   @id @default(cuid())
+  documentId      String
+  chunkIndex      Int      // Orden del chunk (0, 1, 2...)
+
+  // Contenido del chunk
+  content         String   @db.Text
+  wordCount       Int
+
+  // Para búsqueda de texto completo (PostgreSQL)
+  // searchVector se crea con: to_tsvector('spanish', content)
+
+  // Relaciones
+  document        Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  summary         ChunkSummary?
+
+  createdAt       DateTime @default(now())
+
+  @@map("document_chunks")
+  @@index([documentId, chunkIndex])
+  @@unique([documentId, chunkIndex])
+}
+
+// Resumen del chunk (generado por GPT)
+model ChunkSummary {
+  id              String   @id @default(cuid())
+  chunkId         String   @unique
+
+  // Resumen generado
+  summary         String   @db.Text
+
+  // Keywords y tópicos extraídos
+  keywords        String[] // ["keyword1", "keyword2", ...]
+  topics          String[] // ["topic1", "topic2", ...]
+
+  // Metadatos de generación
+  model           String   // "gpt-4o-mini", etc
+  tokensUsed      Int
+
+  // Relaciones
+  chunk           DocumentChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+
+  @@map("chunk_summaries")
+  @@index([keywords])
+  @@index([topics])
+}
+
+// Resumen de documento completo (rollup de chunks)
+model DocumentSummary {
+  id              String   @id @default(cuid())
+  documentId      String
+  level           Int      @default(1)  // Nivel de abstracción (1=ejecutivo, 2=detallado)
+
+  // Resumen del documento completo
+  summary         String   @db.Text
+  keyPoints       String[] // Puntos clave del documento
+  keywords        String[] // Keywords principales
+  topics          String[] // Tópicos principales
+
+  // Metadatos de generación
+  model           String
+  tokensUsed      Int
+
+  // Relaciones
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+
+  @@map("document_summaries")
+  @@index([documentId, level])
+  @@index([keywords])
+  @@index([topics])
 }
 
 // Conversaciones de agentes (para memoria)

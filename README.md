@@ -13,8 +13,10 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 - Activación/bloqueo dinámico
 - Control de acceso por tenant
 
-### Control de Pagos
-- Integración con Stripe/Mercadopago
+### Control de Pagos (Chile)
+- Integración con Transbank (Webpay Plus, OneClick)
+- Pagos con tarjetas de débito/crédito chilenas
+- Suscripciones automáticas
 - Cartola detallada por cliente
 - Suspensión automática por falta de pago
 - Sistema de alertas y recordatorios
@@ -23,9 +25,10 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 - **GPT-5-Mini**: Texto, visión, imágenes, documentos, OCR
 - **GPT-Realtime-Mini**: Audio en tiempo real, bots de voz, llamadas telefónicas
 - **Claude Sonnet 4.5**: Alternativa para procesamiento de texto
-- Memoria de largo plazo
-- Auto-aprendizaje
-- Fuentes de datos: PDFs, páginas web, APIs
+- **Memoria Inteligente**: Resúmenes automáticos multi-nivel (sin vector stores)
+- **Auto-aprendizaje**: Análisis de conversaciones y feedback
+- **Fuentes de datos**: PDFs, páginas web, documentos Word, imágenes (OCR)
+- **Búsqueda híbrida**: Full-text search + keywords + tópicos
 
 ### Métricas y Monitoreo
 - Uso de tokens en tiempo real
@@ -109,10 +112,11 @@ Panel de control administrativo para gestionar servidores, tenants, APIKeys, pag
 - **Monitoring**: Prometheus + Sentry
 
 ### Servicios Externos
-- **Pagos**: Stripe (stripe-python)
+- **Pagos**: Transbank SDK (pagos locales Chile)
 - **AI**: OpenAI SDK + Anthropic SDK (oficiales)
-- **Storage**: boto3 (AWS S3)
+- **Storage**: boto3 (AWS S3) o almacenamiento local
 - **Email**: SendGrid o Resend
+- **Procesamiento**: PyPDF2, pdfplumber, pytesseract (OCR)
 
 ## 🎯 Por Qué Python + Sin Docker
 
@@ -164,8 +168,9 @@ nano .env
 Edita las siguientes variables:
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
-- `STRIPE_SECRET_KEY`
-- `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY`
+- `TRANSBANK_COMMERCE_CODE` y `TRANSBANK_API_KEY`
+- `TRANSBANK_ENV` (integration o production)
+- `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY` (opcional)
 - Dominios: `FRONTEND_URL` y `NEXT_PUBLIC_API_URL`
 
 4. Desplegar en producción
@@ -231,11 +236,11 @@ sudo systemctl status 'aipanel-*'      # Ver todos los servicios
 
 - [Guía de Deployment](./docs/DEPLOYMENT.md) - **IMPORTANTE: Lee esto primero**
 - [Stack Tecnológico Python](./docs/architecture/TECH_STACK.md) - Decisiones técnicas
-- [Arquitectura de Autenticación](./docs/architecture/AUTHENTICATION.md)
-- [Arquitectura del Sistema](./docs/architecture/ARCHITECTURE.md)
-- [API Reference](./docs/api/API.md)
-- [Guía de Modelos AI](./docs/AI_MODELS.md)
-- [Sistema de Pagos](./docs/PAYMENTS.md)
+- [Arquitectura de Autenticación](./docs/architecture/AUTHENTICATION.md) - Multi-nivel
+- [Sistema de Tracking de Tokens](./docs/architecture/TOKEN_TRACKING.md) - Uso justo
+- [Sistemas de Pago Chile](./docs/architecture/PAYMENT_SYSTEMS_CHILE.md) - Transbank vs Khipu
+- [Estrategia de Memoria](./docs/architecture/MEMORY_STRATEGY.md) - Resúmenes vs Vector Stores
+- [Análisis de Gaps](./docs/ANALYSIS_GAPS.md) - Estado del proyecto
 
 ## 🔐 Seguridad
 
