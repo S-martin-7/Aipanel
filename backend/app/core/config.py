@@ -90,6 +90,11 @@ class Settings(BaseSettings):
     # Sentry (opcional)
     SENTRY_DSN: str | None = None
 
+    # Twilio SMS (opcional)
+    TWILIO_ACCOUNT_SID: str | None = None
+    TWILIO_AUTH_TOKEN: str | None = None
+    TWILIO_FROM_NUMBER: str | None = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True
