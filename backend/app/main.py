@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from app.core.config import settings
+from app.core.rate_limiter import RateLimitMiddleware, rate_limiter
 from app.core.database import init_database, close_database
 from app.utils.logger import setup_logging, get_logger
 
@@ -29,6 +30,7 @@ from app.modules.search.router import router as search_router
 from app.modules.payments.router import router as payments_router
 from app.modules.usage.router import router as usage_router
 from app.modules.monitoring.health import router as health_router
+from app.modules.monitoring.prometheus import router as prometheus_router
 from app.modules.settings.router import router as settings_router
 from app.modules.plans.router import router as plans_router
 from app.modules.billing.router import router as billing_router
@@ -99,6 +101,15 @@ def _configure_middleware(app: FastAPI) -> None:
     # Compresión GZIP
     app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+    # Rate limiting (100 requests per minute per IP/API key)
+    if settings.ENVIRONMENT != "test":
+        app.add_middleware(
+            RateLimitMiddleware,
+            limiter=rate_limiter,
+            default_limit=100,
+            window_seconds=60,
+        )
+
     logger.info("Middleware configurado")
 
 
@@ -109,6 +120,11 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(
         health_router,
         tags=["health"]
+    )
+
+    app.include_router(
+        prometheus_router,
+        tags=["monitoring"]
     )
 
     # API v1 routers
@@ -244,6 +260,7 @@ def _configure_events(app: FastAPI) -> None:
 
         # Cerrar conexiones
         await close_database()
+        await rate_limiter.close()
 
         logger.info("Shutdown completado")
 

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Comprobante de Pago</h2>
+
+<p>Hola {{ user_name }},</p>
+
+<div class="success-box">
+    <strong>Pago recibido exitosamente!</strong>
+</div>
+
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <tr style="background-color: #f8f9fa;">
+        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Numero de Transaccion</strong></td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">{{ transaction_id }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Fecha</strong></td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">{{ payment_date }}</td>
+    </tr>
+    <tr style="background-color: #f8f9fa;">
+        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Metodo de Pago</strong></td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">{{ payment_method }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Plan</strong></td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">{{ plan_name }}</td>
+    </tr>
+</table>
+
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <tr style="background-color: #667eea; color: white;">
+        <th style="padding: 10px; text-align: left;">Concepto</th>
+        <th style="padding: 10px; text-align: right;">Monto</th>
+    </tr>
+    <tr>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">{{ plan_name }} - Suscripcion Mensual</td>
+        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">${{ subtotal | number_format }}</td>
+    </tr>
+    {% if discount > 0 %}
+    <tr>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">Descuento</td>
+        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; color: #28a745;">-${{ discount | number_format }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">IVA (19%)</td>
+        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">${{ tax | number_format }}</td>
+    </tr>
+    <tr style="background-color: #f8f9fa; font-weight: bold;">
+        <td style="padding: 10px; border: 1px solid #dee2e6;">Total</td>
+        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; font-size: 18px;">${{ total | number_format }} CLP</td>
+    </tr>
+</table>
+
+<div class="info-box">
+    <strong>Proxima facturacion:</strong> {{ next_billing_date }}<br>
+    <strong>Tokens incluidos:</strong> {{ tokens_included | number_format }} tokens/mes
+</div>
+
+<p style="text-align: center;">
+    <a href="{{ invoice_url }}" class="button">Descargar Factura PDF</a>
+</p>
+
+<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+
+<p style="font-size: 12px; color: #666;">
+    Este comprobante es valido como boleta de servicios. Para solicitar factura con datos fiscales,
+    contactanos en <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+</p>
+{% endblock %}
