@@ -31,6 +31,13 @@ from app.modules.usage.router import router as usage_router
 from app.modules.monitoring.health import router as health_router
 from app.modules.settings.router import router as settings_router
 from app.modules.plans.router import router as plans_router
+from app.modules.billing.router import router as billing_router
+from app.modules.ai_lab.router import router as ai_lab_router
+from app.modules.widget.router import router as widget_router
+from app.modules.webhooks.router import router as webhooks_router
+from app.modules.dashboard.router import router as dashboard_router
+from app.modules.audit.router import router as audit_router
+from app.modules.email.router import router as email_router
 
 logger = get_logger(__name__)
 
@@ -165,6 +172,48 @@ def _register_routers(app: FastAPI) -> None:
         plans_router,
         prefix=f"{api_prefix}/plans",
         tags=["plans"]
+    )
+
+    app.include_router(
+        billing_router,
+        prefix=f"{api_prefix}/billing",
+        tags=["billing"]
+    )
+
+    app.include_router(
+        ai_lab_router,
+        prefix=f"{api_prefix}/ai-lab",
+        tags=["ai-lab"]
+    )
+
+    app.include_router(
+        widget_router,
+        prefix=f"{api_prefix}/widget",
+        tags=["widget"]
+    )
+
+    app.include_router(
+        webhooks_router,
+        prefix=f"{api_prefix}/webhooks",
+        tags=["webhooks"]
+    )
+
+    app.include_router(
+        dashboard_router,
+        prefix=f"{api_prefix}/dashboard",
+        tags=["dashboard"]
+    )
+
+    app.include_router(
+        audit_router,
+        prefix=f"{api_prefix}/audit",
+        tags=["audit"]
+    )
+
+    app.include_router(
+        email_router,
+        prefix=f"{api_prefix}/email",
+        tags=["email"]
     )
 
     logger.info("Routers de modulos registrados")

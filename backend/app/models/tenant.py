@@ -70,6 +70,7 @@ class Tenant(BaseModel):
     documents = relationship("Document", back_populates="tenant", cascade="all, delete-orphan")
     usage_records = relationship("TokenUsage", back_populates="tenant", cascade="all, delete-orphan")
     api_keys = relationship("TenantAPIKey", back_populates="tenant", cascade="all, delete-orphan")
+    webhooks = relationship("Webhook", back_populates="tenant", cascade="all, delete-orphan")
 
     @property
     def is_trial_active(self) -> bool:

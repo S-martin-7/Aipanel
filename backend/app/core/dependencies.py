@@ -36,11 +36,14 @@ async def get_current_user(
         db: Database session
 
     Returns:
-        User object
+        User dict with user info
 
     Raises:
         HTTPException: If token is invalid or user not found
     """
+    from app.models.user import User
+    from app.models.tenant import TenantUser
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -56,20 +59,46 @@ async def get_current_user(
     if user_id is None:
         raise credentials_exception
 
-    # TODO: Fetch user from database
-    # user = await db.execute(select(User).where(User.id == user_id))
-    # user = user.scalar_one_or_none()
-    # if user is None:
-    #     raise credentials_exception
+    user_type = payload.get("type", "admin")  # admin or tenant_user
+    tenant_id = payload.get("tenant_id")
 
-    # Placeholder: Return a dict with user info from token
-    # In production, fetch from database
-    return {
-        "id": user_id,
-        "email": payload.get("email"),
-        "role": payload.get("role", "USER"),
-        "tenant_id": payload.get("tenant_id")
-    }
+    # Fetch user from database based on type
+    if user_type == "tenant_user" and tenant_id:
+        # Tenant user authentication
+        result = await db.execute(
+            select(TenantUser).where(TenantUser.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise credentials_exception
+
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "role": user.role.value if hasattr(user.role, 'value') else user.role,
+            "tenant_id": str(user.tenant_id),
+            "is_active": user.is_active,
+            "type": "tenant_user"
+        }
+    else:
+        # Admin user authentication
+        result = await db.execute(
+            select(User).where(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise credentials_exception
+
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "role": user.role.value if hasattr(user.role, 'value') else user.role,
+            "tenant_id": None,
+            "is_active": user.is_active,
+            "type": "admin"
+        }
 
 
 async def get_current_active_user(
@@ -87,12 +116,11 @@ async def get_current_active_user(
     Raises:
         HTTPException: If user is inactive
     """
-    # TODO: Check if user is active in database
-    # if not current_user.is_active:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail="Inactive user"
-    #     )
+    if not current_user.get("is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user"
+        )
 
     return current_user
 
