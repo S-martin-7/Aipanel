@@ -1,12 +1,16 @@
 """
-Modulo de Autenticacion - Router
+Authentication Module - Router
 
-Define todos los endpoints REST relacionados con autenticacion.
-NO contiene logica de negocio, solo define las rutas y delega a service.py
+REST endpoints for authentication.
+Delegates all business logic to AuthService.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.dependencies import get_current_user, CurrentUser
+from app.utils.logger import get_logger
 
 from .service import AuthService
 from .schemas import (
@@ -16,72 +20,62 @@ from .schemas import (
     RefreshTokenRequest,
     UserResponse
 )
-from app.core.dependencies import get_current_user
-from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
 
+def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
+    """Dependency to get AuthService with database session."""
+    return AuthService(db)
+
+
 @router.post("/login", response_model=AuthResponse)
 async def login(
     request: LoginRequest,
-    service: AuthService = Depends()
+    service: AuthService = Depends(get_auth_service)
 ):
     """
-    Endpoint de login.
+    Authenticate user and get tokens.
 
     Args:
-        request: Email y password del usuario
-        service: Servicio de autenticacion (inyectado)
+        request: Email and password
 
     Returns:
-        AuthResponse: Tokens de acceso y refresh
-
-    Raises:
-        HTTPException: Si credenciales son invalidas
+        AuthResponse: Access and refresh tokens
     """
-    logger.info(f"Login attempt for user: {request.email}")
-
     try:
         result = await service.login(request)
-        logger.info(f"Login successful for user: {request.email}")
         return result
-    except Exception as exc:
-        logger.error(f"Login failed for user: {request.email} - {exc}")
+    except ValueError as exc:
+        logger.warning(f"Login failed for {request.email}: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales invalidas"
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Bearer"}
         )
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     request: RegisterRequest,
-    service: AuthService = Depends()
+    service: AuthService = Depends(get_auth_service)
 ):
     """
-    Endpoint de registro de nuevos usuarios.
+    Register a new admin user.
 
     Args:
-        request: Datos del nuevo usuario
-        service: Servicio de autenticacion (inyectado)
+        request: Registration data (email, password, name)
 
     Returns:
-        AuthResponse: Tokens de acceso y refresh
-
-    Raises:
-        HTTPException: Si el email ya esta registrado
+        AuthResponse: Access and refresh tokens
     """
-    logger.info(f"Registration attempt for email: {request.email}")
-
     try:
         result = await service.register(request)
-        logger.info(f"Registration successful for email: {request.email}")
         return result
     except ValueError as exc:
-        logger.warning(f"Registration failed for email: {request.email} - {exc}")
+        logger.warning(f"Registration failed for {request.email}: {exc}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc)
@@ -91,65 +85,74 @@ async def register(
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh_token(
     request: RefreshTokenRequest,
-    service: AuthService = Depends()
+    service: AuthService = Depends(get_auth_service)
 ):
     """
-    Renovar access token usando refresh token.
+    Refresh access token using refresh token.
 
     Args:
         request: Refresh token
-        service: Servicio de autenticacion (inyectado)
 
     Returns:
-        AuthResponse: Nuevos tokens
-
-    Raises:
-        HTTPException: Si refresh token es invalido
+        AuthResponse: New access and refresh tokens
     """
     try:
         result = await service.refresh_token(request.refresh_token)
         return result
-    except Exception as exc:
-        logger.error(f"Token refresh failed: {exc}")
+    except ValueError as exc:
+        logger.warning(f"Token refresh failed: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token invalido"
+            detail="Invalid or expired refresh token",
+            headers={"WWW-Authenticate": "Bearer"}
         )
 
 
 @router.post("/logout")
 async def logout(
-    current_user: UserResponse = Depends(get_current_user),
-    service: AuthService = Depends()
+    current_user: CurrentUser,
+    service: AuthService = Depends(get_auth_service)
 ):
     """
-    Logout de usuario (invalida refresh token).
+    Logout user (revoke refresh tokens).
 
-    Args:
-        current_user: Usuario actual (inyectado desde JWT)
-        service: Servicio de autenticacion (inyectado)
-
-    Returns:
-        dict: Mensaje de confirmacion
+    Requires valid access token.
     """
-    logger.info(f"Logout for user: {current_user.id}")
+    user_id = current_user.get("id")
+    await service.logout(user_id)
+    logger.info(f"User logged out: {user_id}")
+    return {"message": "Logged out successfully"}
 
-    await service.logout(current_user.id)
 
-    return {"message": "Logout exitoso"}
-
-
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_current_user_info(
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: CurrentUser,
+    service: AuthService = Depends(get_auth_service)
 ):
     """
-    Obtener informacion del usuario actual.
+    Get current user information.
 
-    Args:
-        current_user: Usuario actual (inyectado desde JWT)
-
-    Returns:
-        UserResponse: Datos del usuario
+    Returns user data from JWT token, optionally enriched from database.
     """
-    return current_user
+    user_id = current_user.get("id")
+
+    # Optionally fetch fresh data from database
+    user = await service.get_user_by_id(user_id)
+
+    if user:
+        return UserResponse(
+            id=user.id,
+            email=user.email,
+            name=user.name,
+            role=user.role.value,
+            is_active=user.is_active,
+            created_at=user.created_at
+        )
+
+    # Fallback to token data
+    return {
+        "id": current_user.get("id"),
+        "email": current_user.get("email"),
+        "name": current_user.get("name"),
+        "role": current_user.get("role")
+    }
