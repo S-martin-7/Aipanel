@@ -34,6 +34,9 @@ from app.modules.plans.router import router as plans_router
 from app.modules.billing.router import router as billing_router
 from app.modules.ai_lab.router import router as ai_lab_router
 from app.modules.widget.router import router as widget_router
+from app.modules.webhooks.router import router as webhooks_router
+from app.modules.dashboard.router import router as dashboard_router
+from app.modules.audit.router import router as audit_router
 
 logger = get_logger(__name__)
 
@@ -186,6 +189,24 @@ def _register_routers(app: FastAPI) -> None:
         widget_router,
         prefix=f"{api_prefix}/widget",
         tags=["widget"]
+    )
+
+    app.include_router(
+        webhooks_router,
+        prefix=f"{api_prefix}/webhooks",
+        tags=["webhooks"]
+    )
+
+    app.include_router(
+        dashboard_router,
+        prefix=f"{api_prefix}/dashboard",
+        tags=["dashboard"]
+    )
+
+    app.include_router(
+        audit_router,
+        prefix=f"{api_prefix}/audit",
+        tags=["audit"]
     )
 
     logger.info("Routers de modulos registrados")
