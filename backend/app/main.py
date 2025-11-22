@@ -32,6 +32,8 @@ from app.modules.monitoring.health import router as health_router
 from app.modules.settings.router import router as settings_router
 from app.modules.plans.router import router as plans_router
 from app.modules.billing.router import router as billing_router
+from app.modules.ai_lab.router import router as ai_lab_router
+from app.modules.widget.router import router as widget_router
 
 logger = get_logger(__name__)
 
@@ -172,6 +174,18 @@ def _register_routers(app: FastAPI) -> None:
         billing_router,
         prefix=f"{api_prefix}/billing",
         tags=["billing"]
+    )
+
+    app.include_router(
+        ai_lab_router,
+        prefix=f"{api_prefix}/ai-lab",
+        tags=["ai-lab"]
+    )
+
+    app.include_router(
+        widget_router,
+        prefix=f"{api_prefix}/widget",
+        tags=["widget"]
     )
 
     logger.info("Routers de modulos registrados")
