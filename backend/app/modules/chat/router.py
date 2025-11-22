@@ -2,6 +2,10 @@
 Chat Module - Router
 
 Endpoints for AI chat interactions with streaming support.
+
+Supports authentication via:
+- JWT tokens (for web/mobile apps)
+- External API keys (for integrations like WhatsApp, voice bots)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import TenantUser
+from app.core.dependencies import TenantUser, APIOrJWTAuth, require_scope
 from app.utils.logger import get_logger
 
 from .schemas import (
@@ -29,31 +33,56 @@ def get_chat_service(db: AsyncSession = Depends(get_db)) -> ChatService:
     return ChatService(db)
 
 
+# ============================================================
+# Chat Endpoints (accessible via JWT or External API Key)
+# ============================================================
+
 @router.post("/completions", response_model=ChatCompletionResponse)
 async def create_completion(
     request: ChatCompletionRequest,
-    current_user: TenantUser,
+    auth: APIOrJWTAuth,
     service: ChatService = Depends(get_chat_service),
 ):
     """
     Create a chat completion.
 
     Sends message to AI and returns response.
+
+    Authentication:
+    - JWT token (Authorization: Bearer <token>)
+    - External API key (X-API-Key: aip_xxx)
+
+    For API key auth, the key must have 'chat' scope (or no scope restrictions).
     """
     try:
-        # Get tenant_id from user's tenant association
-        tenant_id = getattr(current_user, "tenant_id", None)
+        tenant_id = auth.get("tenant_id")
         if not tenant_id:
-            raise HTTPException(status_code=400, detail="User not associated with a tenant")
+            raise HTTPException(status_code=400, detail="No tenant associated with this authentication")
+
+        # Check scope for API key auth
+        if auth.get("auth_type") == "api_key":
+            scopes = auth.get("scopes", [])
+            if scopes and "chat" not in scopes:
+                raise HTTPException(status_code=403, detail="API key does not have 'chat' scope")
+
+            # If API key is restricted to a specific agent, enforce it
+            api_key_agent_id = auth.get("agent_id")
+            if api_key_agent_id and request.agent_id != api_key_agent_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"API key is restricted to agent {api_key_agent_id}"
+                )
 
         return await service.create_completion(
             request=request,
-            user=current_user,
+            auth_context=auth,
             tenant_id=tenant_id,
         )
     except ValueError as e:
         logger.warning(f"Completion error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Completion failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to create completion")
@@ -62,23 +91,43 @@ async def create_completion(
 @router.post("/stream")
 async def create_stream_completion(
     request: ChatCompletionRequest,
-    current_user: TenantUser,
+    auth: APIOrJWTAuth,
     service: ChatService = Depends(get_chat_service),
 ):
     """
     Create a streaming chat completion.
 
     Returns Server-Sent Events (SSE) stream.
+
+    Authentication:
+    - JWT token (Authorization: Bearer <token>)
+    - External API key (X-API-Key: aip_xxx)
+
+    For API key auth, the key must have 'chat' or 'chat:stream' scope.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = auth.get("tenant_id")
     if not tenant_id:
-        raise HTTPException(status_code=400, detail="User not associated with a tenant")
+        raise HTTPException(status_code=400, detail="No tenant associated with this authentication")
+
+    # Check scope for API key auth
+    if auth.get("auth_type") == "api_key":
+        scopes = auth.get("scopes", [])
+        if scopes and "chat" not in scopes and "chat:stream" not in scopes:
+            raise HTTPException(status_code=403, detail="API key does not have 'chat' or 'chat:stream' scope")
+
+        # If API key is restricted to a specific agent, enforce it
+        api_key_agent_id = auth.get("agent_id")
+        if api_key_agent_id and request.agent_id != api_key_agent_id:
+            raise HTTPException(
+                status_code=403,
+                detail=f"API key is restricted to agent {api_key_agent_id}"
+            )
 
     async def event_generator():
         try:
             async for chunk in service.stream_completion(
                 request=request,
-                user=current_user,
+                auth_context=auth,
                 tenant_id=tenant_id,
             ):
                 yield chunk
@@ -97,6 +146,10 @@ async def create_stream_completion(
     )
 
 
+# ============================================================
+# Conversation Management (JWT auth only)
+# ============================================================
+
 @router.get("/conversations", response_model=list[ConversationListItem])
 async def list_conversations(
     current_user: TenantUser,
@@ -105,9 +158,14 @@ async def list_conversations(
     offset: int = Query(0, ge=0),
     service: ChatService = Depends(get_chat_service),
 ):
-    """List user's conversations."""
+    """
+    List user's conversations.
+
+    Requires JWT authentication (not available via API keys).
+    """
     return await service.list_conversations(
-        user_id=current_user.id,
+        user_id=current_user.get("id"),
+        tenant_id=current_user.get("tenant_id"),
         agent_id=agent_id,
         limit=limit,
         offset=offset,
@@ -120,10 +178,15 @@ async def get_conversation(
     current_user: TenantUser,
     service: ChatService = Depends(get_chat_service),
 ):
-    """Get a conversation with its messages."""
+    """
+    Get a conversation with its messages.
+
+    Requires JWT authentication.
+    """
     conversation = await service.get_conversation(
         conversation_id=conversation_id,
-        user_id=current_user.id,
+        user_id=current_user.get("id"),
+        tenant_id=current_user.get("tenant_id"),
     )
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -137,10 +200,15 @@ async def delete_conversation(
     current_user: TenantUser,
     service: ChatService = Depends(get_chat_service),
 ):
-    """Delete (archive) a conversation."""
+    """
+    Delete (archive) a conversation.
+
+    Requires JWT authentication.
+    """
     deleted = await service.delete_conversation(
         conversation_id=conversation_id,
-        user_id=current_user.id,
+        user_id=current_user.get("id"),
+        tenant_id=current_user.get("tenant_id"),
     )
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")

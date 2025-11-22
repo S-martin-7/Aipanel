@@ -100,3 +100,67 @@ class TenantSettingsResponse(BaseModel):
     has_anthropic: bool
     monthly_token_limit: int
     current_usage: int
+
+
+# ============================================================
+# External API Keys Schemas (for integrations)
+# ============================================================
+
+class CreateExternalAPIKeyRequest(BaseModel):
+    """Request to create an external API key for integrations."""
+    name: str = Field(..., min_length=1, max_length=100, description="Name for the API key (e.g., 'WhatsApp Bot')")
+    description: Optional[str] = Field(None, max_length=500)
+    scopes: Optional[List[str]] = Field(None, description="Permission scopes (empty = all)")
+    agent_id: Optional[str] = Field(None, description="Restrict to specific agent")
+    rate_limit: int = Field(60, ge=0, description="Requests per minute (0 = unlimited)")
+    expires_at: Optional[datetime] = Field(None, description="Expiration date (optional)")
+    allowed_ips: Optional[str] = Field(None, description="Comma-separated IPs (optional)")
+
+
+class UpdateExternalAPIKeyRequest(BaseModel):
+    """Request to update an external API key."""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    scopes: Optional[List[str]] = None
+    agent_id: Optional[str] = None
+    rate_limit: Optional[int] = Field(None, ge=0)
+    is_active: Optional[bool] = None
+    expires_at: Optional[datetime] = None
+    allowed_ips: Optional[str] = None
+
+
+class ExternalAPIKeyResponse(BaseModel):
+    """Response for external API key (without the actual key)."""
+    id: str
+    name: str
+    description: Optional[str] = None
+    key_prefix: str = Field(..., description="First 12 chars of the key for identification")
+    scopes: Optional[List[str]] = None
+    agent_id: Optional[str] = None
+    rate_limit: int
+    is_active: bool
+    last_used_at: Optional[datetime] = None
+    total_requests: int
+    expires_at: Optional[datetime] = None
+    allowed_ips: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ExternalAPIKeyCreatedResponse(ExternalAPIKeyResponse):
+    """Response when creating an external API key (includes the actual key)."""
+    api_key: str = Field(..., description="The full API key (only shown once!)")
+
+
+class ExternalAPIKeyListResponse(BaseModel):
+    """Response for listing external API keys."""
+    items: List[ExternalAPIKeyResponse]
+    total: int
+
+
+class AvailableScopesResponse(BaseModel):
+    """Response listing available API key scopes."""
+    scopes: List[str]

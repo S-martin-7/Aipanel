@@ -13,7 +13,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Tenant, TenantAPIKey, AIProviderType
+from app.models import Tenant, TenantAPIKey, AIProviderType, ExternalAPIKey, API_KEY_SCOPES
 from app.utils.logger import get_logger
 
 from .schemas import (
@@ -25,6 +25,12 @@ from .schemas import (
     AvailableProvidersResponse,
     TenantSettingsResponse,
     ValidateAPIKeyResponse,
+    CreateExternalAPIKeyRequest,
+    UpdateExternalAPIKeyRequest,
+    ExternalAPIKeyResponse,
+    ExternalAPIKeyCreatedResponse,
+    ExternalAPIKeyListResponse,
+    AvailableScopesResponse,
 )
 
 logger = get_logger(__name__)
@@ -481,3 +487,264 @@ class SettingsService:
             }
         except Exception:
             return None
+
+    # ============================================================
+    # External API Keys (for integrations like WhatsApp, voice bots)
+    # ============================================================
+
+    async def get_external_api_keys(self, tenant_id: str) -> ExternalAPIKeyListResponse:
+        """
+        Get all external API keys for a tenant.
+
+        Args:
+            tenant_id: Tenant ID
+
+        Returns:
+            List of external API keys
+        """
+        result = await self.db.execute(
+            select(ExternalAPIKey).where(ExternalAPIKey.tenant_id == tenant_id)
+        )
+        keys = result.scalars().all()
+
+        items = [
+            ExternalAPIKeyResponse(
+                id=key.id,
+                name=key.name,
+                description=key.description,
+                key_prefix=key.key_prefix,
+                scopes=key.scopes,
+                agent_id=key.agent_id,
+                rate_limit=key.rate_limit,
+                is_active=key.is_active,
+                last_used_at=key.last_used_at,
+                total_requests=key.total_requests,
+                expires_at=key.expires_at,
+                allowed_ips=key.allowed_ips,
+                created_at=key.created_at,
+                updated_at=key.updated_at,
+            )
+            for key in keys
+        ]
+
+        return ExternalAPIKeyListResponse(items=items, total=len(items))
+
+    async def create_external_api_key(
+        self,
+        tenant_id: str,
+        request: CreateExternalAPIKeyRequest
+    ) -> ExternalAPIKeyCreatedResponse:
+        """
+        Create a new external API key.
+
+        Args:
+            tenant_id: Tenant ID
+            request: Creation request
+
+        Returns:
+            Created API key (includes plain key, shown only once!)
+        """
+        # Validate scopes if provided
+        if request.scopes:
+            invalid_scopes = [s for s in request.scopes if s not in API_KEY_SCOPES]
+            if invalid_scopes:
+                raise ValueError(f"Invalid scopes: {invalid_scopes}")
+
+        # Validate agent_id if provided
+        if request.agent_id:
+            from app.models import Agent
+            agent_result = await self.db.execute(
+                select(Agent).where(
+                    Agent.id == request.agent_id,
+                    Agent.tenant_id == tenant_id
+                )
+            )
+            if not agent_result.scalar_one_or_none():
+                raise ValueError("Agent not found or does not belong to this tenant")
+
+        # Create key
+        key_instance, plain_key = ExternalAPIKey.create_key(
+            tenant_id=tenant_id,
+            name=request.name,
+            description=request.description,
+            scopes=request.scopes,
+            agent_id=request.agent_id,
+            rate_limit=request.rate_limit,
+            expires_at=request.expires_at,
+            allowed_ips=request.allowed_ips,
+        )
+
+        self.db.add(key_instance)
+        await self.db.commit()
+        await self.db.refresh(key_instance)
+
+        logger.info(f"Created external API key '{request.name}' for tenant {tenant_id}")
+
+        return ExternalAPIKeyCreatedResponse(
+            id=key_instance.id,
+            name=key_instance.name,
+            description=key_instance.description,
+            key_prefix=key_instance.key_prefix,
+            scopes=key_instance.scopes,
+            agent_id=key_instance.agent_id,
+            rate_limit=key_instance.rate_limit,
+            is_active=key_instance.is_active,
+            last_used_at=key_instance.last_used_at,
+            total_requests=key_instance.total_requests,
+            expires_at=key_instance.expires_at,
+            allowed_ips=key_instance.allowed_ips,
+            created_at=key_instance.created_at,
+            updated_at=key_instance.updated_at,
+            api_key=plain_key,  # Only returned at creation!
+        )
+
+    async def update_external_api_key(
+        self,
+        tenant_id: str,
+        key_id: str,
+        request: UpdateExternalAPIKeyRequest
+    ) -> Optional[ExternalAPIKeyResponse]:
+        """
+        Update an external API key.
+
+        Args:
+            tenant_id: Tenant ID
+            key_id: Key ID
+            request: Update request
+
+        Returns:
+            Updated key or None if not found
+        """
+        result = await self.db.execute(
+            select(ExternalAPIKey).where(
+                ExternalAPIKey.id == key_id,
+                ExternalAPIKey.tenant_id == tenant_id
+            )
+        )
+        key = result.scalar_one_or_none()
+
+        if not key:
+            return None
+
+        # Validate scopes if provided
+        if request.scopes is not None:
+            invalid_scopes = [s for s in request.scopes if s not in API_KEY_SCOPES]
+            if invalid_scopes:
+                raise ValueError(f"Invalid scopes: {invalid_scopes}")
+
+        # Update fields
+        if request.name is not None:
+            key.name = request.name
+        if request.description is not None:
+            key.description = request.description
+        if request.scopes is not None:
+            key.scopes = request.scopes
+        if request.agent_id is not None:
+            key.agent_id = request.agent_id if request.agent_id else None
+        if request.rate_limit is not None:
+            key.rate_limit = request.rate_limit
+        if request.is_active is not None:
+            key.is_active = request.is_active
+        if request.expires_at is not None:
+            key.expires_at = request.expires_at
+        if request.allowed_ips is not None:
+            key.allowed_ips = request.allowed_ips if request.allowed_ips else None
+
+        key.updated_at = datetime.utcnow()
+
+        await self.db.commit()
+        await self.db.refresh(key)
+
+        logger.info(f"Updated external API key {key_id} for tenant {tenant_id}")
+
+        return ExternalAPIKeyResponse(
+            id=key.id,
+            name=key.name,
+            description=key.description,
+            key_prefix=key.key_prefix,
+            scopes=key.scopes,
+            agent_id=key.agent_id,
+            rate_limit=key.rate_limit,
+            is_active=key.is_active,
+            last_used_at=key.last_used_at,
+            total_requests=key.total_requests,
+            expires_at=key.expires_at,
+            allowed_ips=key.allowed_ips,
+            created_at=key.created_at,
+            updated_at=key.updated_at,
+        )
+
+    async def delete_external_api_key(self, tenant_id: str, key_id: str) -> bool:
+        """
+        Delete an external API key.
+
+        Args:
+            tenant_id: Tenant ID
+            key_id: Key ID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        result = await self.db.execute(
+            select(ExternalAPIKey).where(
+                ExternalAPIKey.id == key_id,
+                ExternalAPIKey.tenant_id == tenant_id
+            )
+        )
+        key = result.scalar_one_or_none()
+
+        if not key:
+            return False
+
+        await self.db.delete(key)
+        await self.db.commit()
+
+        logger.info(f"Deleted external API key {key_id} from tenant {tenant_id}")
+        return True
+
+    async def get_external_api_key(
+        self,
+        tenant_id: str,
+        key_id: str
+    ) -> Optional[ExternalAPIKeyResponse]:
+        """
+        Get a single external API key.
+
+        Args:
+            tenant_id: Tenant ID
+            key_id: Key ID
+
+        Returns:
+            API key or None if not found
+        """
+        result = await self.db.execute(
+            select(ExternalAPIKey).where(
+                ExternalAPIKey.id == key_id,
+                ExternalAPIKey.tenant_id == tenant_id
+            )
+        )
+        key = result.scalar_one_or_none()
+
+        if not key:
+            return None
+
+        return ExternalAPIKeyResponse(
+            id=key.id,
+            name=key.name,
+            description=key.description,
+            key_prefix=key.key_prefix,
+            scopes=key.scopes,
+            agent_id=key.agent_id,
+            rate_limit=key.rate_limit,
+            is_active=key.is_active,
+            last_used_at=key.last_used_at,
+            total_requests=key.total_requests,
+            expires_at=key.expires_at,
+            allowed_ips=key.allowed_ips,
+            created_at=key.created_at,
+            updated_at=key.updated_at,
+        )
+
+    def get_available_scopes(self) -> AvailableScopesResponse:
+        """Get list of available API key scopes."""
+        return AvailableScopesResponse(scopes=API_KEY_SCOPES)

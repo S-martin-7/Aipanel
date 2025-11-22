@@ -48,7 +48,7 @@ class ChatService:
     async def create_completion(
         self,
         request: ChatCompletionRequest,
-        user: User,
+        auth_context: dict,
         tenant_id: str,
     ) -> ChatCompletionResponse:
         """
@@ -56,17 +56,21 @@ class ChatService:
 
         Args:
             request: Completion request with message
-            user: Current user
+            auth_context: Authentication context (from JWT or API key)
             tenant_id: Tenant ID for routing
 
         Returns:
             ChatCompletionResponse with AI response
         """
+        # Extract user_id from auth context
+        # For API key auth, user_id may be None (use api_key_id instead)
+        user_id = auth_context.get("user_id") or auth_context.get("api_key_id")
+
         # Get or create conversation
         conversation = await self._get_or_create_conversation(
             conversation_id=request.conversation_id,
             agent_id=request.agent_id,
-            user_id=user.id,
+            user_id=user_id,
             tenant_id=tenant_id,
         )
 
@@ -134,7 +138,7 @@ class ChatService:
     async def stream_completion(
         self,
         request: ChatCompletionRequest,
-        user: User,
+        auth_context: dict,
         tenant_id: str,
     ) -> AsyncIterator[str]:
         """
@@ -142,11 +146,14 @@ class ChatService:
 
         Yields SSE-formatted chunks.
         """
+        # Extract user_id from auth context
+        user_id = auth_context.get("user_id") or auth_context.get("api_key_id")
+
         # Get or create conversation
         conversation = await self._get_or_create_conversation(
             conversation_id=request.conversation_id,
             agent_id=request.agent_id,
-            user_id=user.id,
+            user_id=user_id,
             tenant_id=tenant_id,
         )
 
@@ -207,6 +214,7 @@ class ChatService:
         self,
         conversation_id: str,
         user_id: str,
+        tenant_id: str,
     ) -> Optional[ConversationResponse]:
         """Get a conversation with its messages."""
         result = await self.db.execute(
@@ -215,6 +223,7 @@ class ChatService:
             .where(
                 Conversation.id == conversation_id,
                 Conversation.user_id == user_id,
+                Conversation.tenant_id == tenant_id,
             )
         )
         conversation = result.scalar_one_or_none()
@@ -244,12 +253,16 @@ class ChatService:
     async def list_conversations(
         self,
         user_id: str,
+        tenant_id: str,
         agent_id: Optional[str] = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[ConversationListItem]:
         """List conversations for a user."""
-        query = select(Conversation).where(Conversation.user_id == user_id)
+        query = select(Conversation).where(
+            Conversation.user_id == user_id,
+            Conversation.tenant_id == tenant_id,
+        )
 
         if agent_id:
             query = query.where(Conversation.agent_id == agent_id)
@@ -282,12 +295,14 @@ class ChatService:
         self,
         conversation_id: str,
         user_id: str,
+        tenant_id: str,
     ) -> bool:
         """Delete a conversation."""
         result = await self.db.execute(
             select(Conversation).where(
                 Conversation.id == conversation_id,
                 Conversation.user_id == user_id,
+                Conversation.tenant_id == tenant_id,
             )
         )
         conversation = result.scalar_one_or_none()

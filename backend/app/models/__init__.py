@@ -28,6 +28,7 @@ from .document import Document, DocumentChunk, ChunkSummary, DocumentSummary
 from .usage import TokenUsage, UsageSummary, UsageThreshold, UsageAlert, Payment
 from .tenant_api_key import TenantAPIKey
 from .plan import Plan, DEFAULT_PLANS
+from .external_api_key import ExternalAPIKey, API_KEY_SCOPES, generate_api_key, hash_api_key
 
 __all__ = [
     # Base
@@ -79,4 +80,9 @@ __all__ = [
     # Plan models
     "Plan",
     "DEFAULT_PLANS",
+    # External API Key models
+    "ExternalAPIKey",
+    "API_KEY_SCOPES",
+    "generate_api_key",
+    "hash_api_key",
 ]
