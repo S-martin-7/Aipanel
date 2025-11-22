@@ -1,0 +1,28 @@
+[Unit]
+Description=AIPanel Backend API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=aipanel
+Group=aipanel
+WorkingDirectory=/opt/aipanel/backend
+Environment="PATH=/opt/aipanel/backend/venv/bin"
+EnvironmentFile=/opt/aipanel/backend/.env
+ExecStart=/opt/aipanel/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/aipanel/backend/logs /opt/aipanel/backend/uploads
+
+[Install]
+WantedBy=multi-user.target
