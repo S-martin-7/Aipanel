@@ -18,6 +18,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.core.config import settings
 from app.core.rate_limiter import RateLimitMiddleware, rate_limiter
 from app.core.database import init_database, close_database
+from app.core.request_context import RequestContextMiddleware
+from app.core.startup_validation import run_startup_validation, run_all_validations
 from app.utils.logger import setup_logging, get_logger
 
 # Importar routers de módulos
@@ -89,10 +91,14 @@ def create_app() -> FastAPI:
 def _configure_middleware(app: FastAPI) -> None:
     """Configurar middleware de la aplicación."""
 
+    # Request Context (first - outer middleware runs last)
+    # This sets up request_id, tenant_id, user_id for logging
+    app.add_middleware(RequestContextMiddleware)
+
     # CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=settings.get_cors_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -243,13 +249,19 @@ def _configure_events(app: FastAPI) -> None:
         """Ejecutado al iniciar la aplicación."""
         logger.info("Ejecutando tareas de startup")
 
-        # Inicializar conexión a base de datos
+        # 1. Validate configuration (fail fast on critical errors)
+        run_startup_validation(
+            fail_on_error=(settings.ENVIRONMENT == "production")
+        )
+
+        # 2. Inicializar conexión a base de datos
         await init_database()
 
-        # Aquí se pueden agregar otras tareas de inicio:
-        # - Inicializar conexión a Redis
-        # - Verificar conexión a servicios externos
-        # - Cargar configuración adicional
+        # 3. Run async validations (database, redis, etc.)
+        validation_results = await run_all_validations(
+            fail_on_critical=(settings.ENVIRONMENT == "production")
+        )
+        logger.info(f"Validation results: {validation_results}")
 
         logger.info("Startup completado")
 

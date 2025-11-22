@@ -27,8 +27,9 @@ from app.integrations.providers.base import (
 )
 from app.ai_config.provider_loader import provider_loader, ProviderConfig, ProviderLoadError
 from app.utils.logger import get_logger
+from app.core.request_context import get_contextual_logger
 
-logger = get_logger(__name__)
+logger = get_contextual_logger(__name__)
 
 
 class RouteType(str, Enum):
@@ -97,11 +98,12 @@ class AIRouter:
     - Automatic fallback on failure
     - Circuit breaker integration
     - Retry with exponential backoff
-    - Usage logging
+    - Usage logging and metrics
     """
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, usage_service=None):
         self.db = db
+        self._usage_service = usage_service
         self._route_cache: Dict[str, List[ResolvedRoute]] = {}
         self._cache_ttl = timedelta(seconds=60)
         self._cache_timestamps: Dict[str, datetime] = {}
@@ -182,6 +184,13 @@ class AIRouter:
 
             await provider_loader.record_success(route.provider_code)
 
+            # Record usage metrics
+            await self._record_usage(
+                context=context,
+                model=route.model_code,
+                result=result,
+            )
+
             return ExecutionResult(
                 result=result,
                 route_used=route,
@@ -207,6 +216,13 @@ class AIRouter:
                 )
 
                 await provider_loader.record_success(fallback["provider_code"])
+
+                # Record usage metrics for fallback
+                await self._record_usage(
+                    context=context,
+                    model=fallback["model_code"],
+                    result=result,
+                )
 
                 return ExecutionResult(
                     result=result,
@@ -495,6 +511,44 @@ class AIRouter:
     def _get_cache_key(self, context: RoutingContext) -> str:
         """Generate cache key for route lookup."""
         return f"{context.tenant_id}:{context.route_type}:{context.agent_id or 'default'}"
+
+    async def _record_usage(
+        self,
+        context: RoutingContext,
+        model: str,
+        result: GenerationResult,
+    ) -> None:
+        """
+        Record token usage for billing and analytics.
+
+        Args:
+            context: Routing context with tenant/agent info
+            model: Model code used
+            result: Generation result with token usage
+        """
+        if not self._usage_service or not result.usage:
+            return
+
+        try:
+            await self._usage_service.record_usage(
+                tenant_id=context.tenant_id,
+                agent_id=context.agent_id or "default",
+                model=model,
+                prompt_tokens=result.usage.prompt_tokens,
+                completion_tokens=result.usage.completion_tokens,
+            )
+            logger.info(
+                f"Recorded usage: {result.usage.total_tokens} tokens for {model}",
+                extra={
+                    "tenant_id": context.tenant_id,
+                    "agent_id": context.agent_id,
+                    "model": model,
+                    "tokens": result.usage.total_tokens,
+                }
+            )
+        except Exception as e:
+            # Don't fail the request if usage tracking fails
+            logger.error(f"Failed to record usage: {e}", extra={"error": str(e)})
 
     async def invalidate_cache(self, tenant_id: Optional[str] = None) -> None:
         """Invalidate route cache."""
