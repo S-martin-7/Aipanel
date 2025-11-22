@@ -95,6 +95,15 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str | None = None
     TWILIO_FROM_NUMBER: str | None = None
 
+    # Slack (opcional)
+    SLACK_WEBHOOK_URL: str | None = None
+    SLACK_BOT_TOKEN: str | None = None
+    SLACK_DEFAULT_CHANNEL: str | None = None
+
+    # OneSignal Push Notifications (opcional)
+    ONESIGNAL_APP_ID: str | None = None
+    ONESIGNAL_API_KEY: str | None = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True
