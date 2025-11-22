@@ -80,3 +80,25 @@ class PaymentStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     REFUNDED = "REFUNDED"
+
+
+class MessageRole(str, enum.Enum):
+    """Message roles in conversation."""
+    SYSTEM = "system"
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class ConversationStatus(str, enum.Enum):
+    """Conversation status."""
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+    DELETED = "DELETED"
+
+
+class AIProviderType(str, enum.Enum):
+    """Types of AI providers."""
+    OPENAI = "OPENAI"
+    ANTHROPIC = "ANTHROPIC"
+    GOOGLE = "GOOGLE"
+    CUSTOM = "CUSTOM"

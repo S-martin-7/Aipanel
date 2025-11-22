@@ -1,6 +1,7 @@
 "use client";
 
-import { Settings, User, Key, Bell } from "lucide-react";
+import Link from "next/link";
+import { Settings, User, Key, Bell, ChevronRight, Cpu } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +13,29 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Configuracion</h1>
         <p className="text-gray-500 mt-1">Gestiona tu cuenta y preferencias</p>
       </div>
+
+      {/* API Keys Link */}
+      <Link href="/settings/api-keys">
+        <Card className="hover:border-primary-300 hover:shadow-sm transition-all cursor-pointer">
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                <Cpu className="w-5 h-5 text-primary-600" />
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-900">API Keys de IA</h3>
+                <p className="text-sm text-gray-500">
+                  Configura las claves de API para OpenAI, Anthropic y otros proveedores
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* Profile */}
       <Card>

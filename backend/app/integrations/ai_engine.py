@@ -2,20 +2,31 @@
 AI Engine - Dynamic Provider Loading and Routing.
 
 Handles dynamic loading of AI providers and model routing based on configuration.
+Supports tenant-specific API keys with fallback to global config.
 """
 
 import importlib
+import base64
 from typing import Optional, Type
-from functools import lru_cache
 
+from cryptography.fernet import Fernet
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AIProvider, AIModel, AIRoute, AIParamProfile
+from app.models import AIProvider, AIModel, AIRoute, AIParamProfile, TenantAPIKey, AIProviderType
+from app.core.config import settings
 from app.utils.logger import get_logger
 from .base_provider import BaseAIProvider, Message, CompletionResponse
 
 logger = get_logger(__name__)
+
+
+# Mapping from provider names to AIProviderType enum
+PROVIDER_NAME_TO_TYPE = {
+    "OpenAI": AIProviderType.OPENAI,
+    "Anthropic": AIProviderType.ANTHROPIC,
+    "Google": AIProviderType.GOOGLE,
+}
 
 
 class AIEngine:
@@ -27,6 +38,7 @@ class AIEngine:
     - Route requests to appropriate model/provider
     - Apply parameter profiles
     - Handle fallbacks
+    - Support tenant-specific API keys
     """
 
     def __init__(self, db: AsyncSession):
@@ -38,21 +50,78 @@ class AIEngine:
         """
         self.db = db
         self._provider_cache: dict[str, BaseAIProvider] = {}
+        self._init_cipher()
 
-    async def get_provider(self, provider_id: str) -> BaseAIProvider:
+    def _init_cipher(self) -> None:
+        """Initialize encryption cipher for decrypting tenant API keys."""
+        key_bytes = settings.SECRET_KEY.encode()[:32].ljust(32, b'0')
+        self._cipher = Fernet(base64.urlsafe_b64encode(key_bytes))
+
+    def _decrypt_key(self, encrypted_key: str) -> str:
+        """Decrypt an API key."""
+        return self._cipher.decrypt(encrypted_key.encode()).decode()
+
+    async def _get_tenant_api_key(
+        self,
+        tenant_id: str,
+        provider_type: AIProviderType
+    ) -> Optional[dict]:
+        """
+        Get decrypted API key for a tenant and provider.
+
+        Args:
+            tenant_id: Tenant ID
+            provider_type: Provider type enum
+
+        Returns:
+            Dict with api_key and config, or None if not found
+        """
+        result = await self.db.execute(
+            select(TenantAPIKey).where(
+                TenantAPIKey.tenant_id == tenant_id,
+                TenantAPIKey.provider_type == provider_type,
+                TenantAPIKey.is_active == True
+            )
+        )
+        key = result.scalar_one_or_none()
+
+        if not key:
+            return None
+
+        try:
+            api_key = self._decrypt_key(key.api_key_encrypted)
+            return {
+                "api_key": api_key,
+                "organization_id": key.organization_id,
+                "base_url": key.base_url,
+            }
+        except Exception as e:
+            logger.error(f"Failed to decrypt API key for tenant {tenant_id}: {e}")
+            return None
+
+    async def get_provider(
+        self,
+        provider_id: str,
+        tenant_id: Optional[str] = None
+    ) -> BaseAIProvider:
         """
         Get or create provider instance.
 
-        Providers are cached for reuse.
+        If tenant_id is provided, tries to use tenant-specific API key.
+        Falls back to global config if tenant key not available.
 
         Args:
             provider_id: Provider ID from database
+            tenant_id: Optional tenant ID for tenant-specific keys
 
         Returns:
             BaseAIProvider instance
         """
-        if provider_id in self._provider_cache:
-            return self._provider_cache[provider_id]
+        # Cache key includes tenant_id to separate instances
+        cache_key = f"{provider_id}:{tenant_id or 'global'}"
+
+        if cache_key in self._provider_cache:
+            return self._provider_cache[cache_key]
 
         # Load provider config from database
         result = await self.db.execute(
@@ -72,12 +141,40 @@ class AIEngine:
             provider_config.handler_class
         )
 
+        # Try to get tenant-specific API key
+        config = None
+        if tenant_id:
+            provider_type = PROVIDER_NAME_TO_TYPE.get(provider_config.name)
+            if provider_type:
+                tenant_key = await self._get_tenant_api_key(tenant_id, provider_type)
+                if tenant_key:
+                    config = {
+                        "api_key": tenant_key["api_key"],
+                        "organization_id": tenant_key.get("organization_id"),
+                        "base_url": tenant_key.get("base_url"),
+                    }
+                    logger.info(f"Using tenant-specific API key for {provider_config.name}")
+
+        # Fall back to global config if no tenant key
+        if not config:
+            config = provider_config.config_json or {}
+            # Also check environment variables as fallback
+            if not config.get("api_key"):
+                if provider_config.name == "OpenAI" and settings.OPENAI_API_KEY:
+                    config["api_key"] = settings.OPENAI_API_KEY
+                elif provider_config.name == "Anthropic" and settings.ANTHROPIC_API_KEY:
+                    config["api_key"] = settings.ANTHROPIC_API_KEY
+
+            logger.info(f"Using global config for {provider_config.name}")
+
+        if not config.get("api_key"):
+            raise ValueError(f"No API key configured for provider: {provider_config.name}")
+
         # Create instance with config
-        config = provider_config.config_json or {}
         provider_instance = provider_class(config)
 
         # Cache for reuse
-        self._provider_cache[provider_id] = provider_instance
+        self._provider_cache[cache_key] = provider_instance
 
         logger.info(f"Loaded provider: {provider_config.name}")
         return provider_instance
@@ -197,7 +294,7 @@ class AIEngine:
 
         Args:
             messages: Conversation messages
-            tenant_id: Optional tenant for routing
+            tenant_id: Optional tenant for routing and API key lookup
             agent_id: Optional agent for routing
             mode: Interaction mode
             **kwargs: Additional parameters (can override route settings)
@@ -212,8 +309,8 @@ class AIEngine:
             mode=mode
         )
 
-        # Get provider
-        provider = await self.get_provider(model.provider_id)
+        # Get provider with tenant-specific key if available
+        provider = await self.get_provider(model.provider_id, tenant_id)
 
         # Build parameters from profile
         params = {
@@ -255,7 +352,8 @@ class AIEngine:
             mode=mode
         )
 
-        provider = await self.get_provider(model.provider_id)
+        # Get provider with tenant-specific key if available
+        provider = await self.get_provider(model.provider_id, tenant_id)
 
         params = {
             "messages": messages,
@@ -272,10 +370,22 @@ class AIEngine:
         async for chunk in provider.stream_completion(**params):
             yield chunk
 
-    def clear_cache(self) -> None:
-        """Clear provider cache (useful after config changes)."""
-        self._provider_cache.clear()
-        logger.info("Provider cache cleared")
+    def clear_cache(self, tenant_id: Optional[str] = None) -> None:
+        """
+        Clear provider cache.
+
+        Args:
+            tenant_id: If provided, only clear cache for this tenant.
+                       If None, clear all cache.
+        """
+        if tenant_id:
+            keys_to_remove = [k for k in self._provider_cache if k.endswith(f":{tenant_id}")]
+            for key in keys_to_remove:
+                del self._provider_cache[key]
+            logger.info(f"Provider cache cleared for tenant {tenant_id}")
+        else:
+            self._provider_cache.clear()
+            logger.info("Provider cache cleared")
 
 
 # Factory function for dependency injection

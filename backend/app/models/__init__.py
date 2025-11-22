@@ -16,6 +16,9 @@ from .enums import (
     DocumentStatus,
     AlertLevel,
     PaymentStatus,
+    MessageRole,
+    ConversationStatus,
+    AIProviderType,
 )
 from .user import User, RefreshToken
 from .tenant import Tenant, TenantUser
@@ -23,6 +26,7 @@ from .agent import Agent, Conversation, Message
 from .ai_provider import AIProvider, AIModel, AIParamProfile, AIRoute, FeatureFlag
 from .document import Document, DocumentChunk, ChunkSummary, DocumentSummary
 from .usage import TokenUsage, UsageSummary, UsageThreshold, UsageAlert, Payment
+from .tenant_api_key import TenantAPIKey
 
 __all__ = [
     # Base
@@ -40,12 +44,16 @@ __all__ = [
     "DocumentStatus",
     "AlertLevel",
     "PaymentStatus",
+    "MessageRole",
+    "ConversationStatus",
+    "AIProviderType",
     # User models
     "User",
     "RefreshToken",
     # Tenant models
     "Tenant",
     "TenantUser",
+    "TenantAPIKey",
     # Agent models
     "Agent",
     "Conversation",

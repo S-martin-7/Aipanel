@@ -50,6 +50,7 @@ class Tenant(BaseModel):
     agents = relationship("Agent", back_populates="tenant", cascade="all, delete-orphan")
     documents = relationship("Document", back_populates="tenant", cascade="all, delete-orphan")
     usage_records = relationship("TokenUsage", back_populates="tenant", cascade="all, delete-orphan")
+    api_keys = relationship("TenantAPIKey", back_populates="tenant", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Tenant {self.slug}>"

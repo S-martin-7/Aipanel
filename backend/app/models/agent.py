@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import relationship
 
 from .base import BaseModel
-from .enums import AgentStatus, AgentMode
+from .enums import AgentStatus, AgentMode, ConversationStatus, MessageRole
 
 
 class Agent(BaseModel):
@@ -77,6 +77,8 @@ class Conversation(BaseModel):
     __tablename__ = "conversations"
 
     agent_id = Column(String(36), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     tenant_user_id = Column(String(36), ForeignKey("tenant_users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Metadata
@@ -88,6 +90,7 @@ class Conversation(BaseModel):
     total_tokens = Column(Integer, default=0, nullable=False)
 
     # Status
+    status = Column(Enum(ConversationStatus), default=ConversationStatus.ACTIVE, nullable=False)
     is_archived = Column(Boolean, default=False, nullable=False)
 
     # Relationships
@@ -110,12 +113,13 @@ class Message(BaseModel):
     conversation_id = Column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Message content
-    role = Column(String(20), nullable=False)  # user, assistant, system
+    role = Column(Enum(MessageRole), nullable=False)
     content = Column(Text, nullable=False)
 
     # Token tracking
     input_tokens = Column(Integer, default=0, nullable=False)
     output_tokens = Column(Integer, default=0, nullable=False)
+    tokens_used = Column(Integer, nullable=True)  # Total tokens for this message
 
     # Model used
     model = Column(String(50), nullable=True)
@@ -127,4 +131,5 @@ class Message(BaseModel):
     conversation = relationship("Conversation", back_populates="messages")
 
     def __repr__(self):
-        return f"<Message {self.role} {self.id[:8]}>"
+        role_str = self.role.value if self.role else "unknown"
+        return f"<Message {role_str} {self.id[:8]}>"
