@@ -60,7 +60,14 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     AWS_S3_BUCKET: str | None = None
 
-    # Email
+    # Email - SMTP
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM: str = "noreply@aipanel.com"
+
+    # Email - SendGrid (alternativo)
     SENDGRID_API_KEY: str | None = None
     EMAIL_FROM: str = "noreply@aipanel.com"
     EMAIL_FROM_NAME: str = "AIPanel"

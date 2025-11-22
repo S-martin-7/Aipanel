@@ -37,6 +37,7 @@ from app.modules.widget.router import router as widget_router
 from app.modules.webhooks.router import router as webhooks_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.audit.router import router as audit_router
+from app.modules.email.router import router as email_router
 
 logger = get_logger(__name__)
 
@@ -207,6 +208,12 @@ def _register_routers(app: FastAPI) -> None:
         audit_router,
         prefix=f"{api_prefix}/audit",
         tags=["audit"]
+    )
+
+    app.include_router(
+        email_router,
+        prefix=f"{api_prefix}/email",
+        tags=["email"]
     )
 
     logger.info("Routers de modulos registrados")
