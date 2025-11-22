@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Alerta de Uso de Tokens</h2>
+
+<p>Hola {{ user_name }},</p>
+
+{% if alert_level == "warning" %}
+<div class="warning-box">
+    <strong>Advertencia:</strong> Has utilizado el {{ usage_percentage }}% de tus tokens mensuales.
+</div>
+{% elif alert_level == "critical" %}
+<div class="error-box">
+    <strong>Critico:</strong> Has utilizado el {{ usage_percentage }}% de tus tokens mensuales.
+</div>
+{% endif %}
+
+<div class="stats">
+    <div class="stat-item">
+        <div class="stat-value">{{ tokens_used | number_format }}</div>
+        <div class="stat-label">Tokens Usados</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">{{ tokens_limit | number_format }}</div>
+        <div class="stat-label">Limite Mensual</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">{{ tokens_remaining | number_format }}</div>
+        <div class="stat-label">Disponibles</div>
+    </div>
+</div>
+
+<h3>Que puedes hacer:</h3>
+<ul>
+    <li><strong>Optimizar el uso:</strong> Revisa tus agentes y ajusta los prompts para usar menos tokens</li>
+    <li><strong>Actualizar tu plan:</strong> Obtiene mas tokens con un plan superior</li>
+    <li><strong>Comprar tokens adicionales:</strong> Agrega tokens extra a tu cuenta</li>
+</ul>
+
+<p style="text-align: center;">
+    <a href="{{ app_url }}/usage" class="button">Ver Uso Detallado</a>
+    <a href="{{ app_url }}/billing" class="button" style="background: #28a745;">Actualizar Plan</a>
+</p>
+
+<div class="info-box">
+    <strong>Periodo actual:</strong> {{ period_start }} - {{ period_end }}<br>
+    <strong>Dias restantes:</strong> {{ days_remaining }}
+</div>
+
+{% if alert_level == "critical" %}
+<p><strong>Nota:</strong> Si alcanzas el 100% de tu limite, los agentes dejaran de responder hasta que renueves tu plan o compres tokens adicionales.</p>
+{% endif %}
+{% endblock %}

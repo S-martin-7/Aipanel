@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if status == "cancelled" %}
+<h2>Suscripcion Cancelada</h2>
+
+<p>Hola {{ user_name }},</p>
+
+<p>Tu suscripcion a AIPanel ha sido cancelada exitosamente.</p>
+
+<div class="info-box">
+    <strong>Detalles:</strong><br>
+    Plan: {{ plan_name }}<br>
+    Fecha de cancelacion: {{ cancel_date }}<br>
+    Acceso hasta: {{ access_until }}
+</div>
+
+<p>Podras seguir usando AIPanel hasta el {{ access_until }}. Despues de esa fecha:</p>
+<ul>
+    <li>Tus agentes dejaran de responder</li>
+    <li>Tus datos se mantendran por 30 dias</li>
+    <li>Podras reactivar tu cuenta en cualquier momento</li>
+</ul>
+
+<p>Lamentamos verte partir. Si hay algo que podamos mejorar, nos encantaria escucharte.</p>
+
+<p style="text-align: center;">
+    <a href="{{ app_url }}/billing" class="button">Reactivar Suscripcion</a>
+</p>
+
+{% elif status == "suspended" %}
+<h2>Cuenta Suspendida</h2>
+
+<p>Hola {{ user_name }},</p>
+
+<div class="error-box">
+    <strong>Tu cuenta ha sido suspendida</strong> debido a: {{ suspension_reason }}
+</div>
+
+{% if suspension_reason == "payment_failed" %}
+<p>No pudimos procesar tu pago. Por favor, actualiza tu metodo de pago para reactivar tu cuenta.</p>
+
+<p style="text-align: center;">
+    <a href="{{ app_url }}/billing/payment-method" class="button">Actualizar Metodo de Pago</a>
+</p>
+
+{% elif suspension_reason == "usage_exceeded" %}
+<p>Has excedido el limite de uso de tu plan. Actualiza a un plan superior para continuar usando AIPanel.</p>
+
+<p style="text-align: center;">
+    <a href="{{ app_url }}/billing/upgrade" class="button">Actualizar Plan</a>
+</p>
+{% endif %}
+
+<div class="warning-box">
+    <strong>Importante:</strong> Si no resuelves esta situacion en {{ days_to_deletion }} dias,
+    tus datos podrian ser eliminados permanentemente.
+</div>
+
+{% elif status == "reactivated" %}
+<h2>Cuenta Reactivada!</h2>
+
+<p>Hola {{ user_name }},</p>
+
+<div class="success-box">
+    <strong>Tu cuenta ha sido reactivada exitosamente!</strong>
+</div>
+
+<p>Ya puedes volver a usar todos los servicios de AIPanel:</p>
+<ul>
+    <li>Tus agentes estan activos nuevamente</li>
+    <li>Todos tus datos estan intactos</li>
+    <li>Tu nuevo ciclo de facturacion comienza hoy</li>
+</ul>
+
+<div class="info-box">
+    <strong>Tu plan:</strong> {{ plan_name }}<br>
+    <strong>Tokens mensuales:</strong> {{ tokens_included | number_format }}<br>
+    <strong>Proxima facturacion:</strong> {{ next_billing_date }}
+</div>
+
+<p style="text-align: center;">
+    <a href="{{ app_url }}/dashboard" class="button">Ir al Dashboard</a>
+</p>
+{% endif %}
+{% endblock %}

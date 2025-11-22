@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Bienvenido a AIPanel, {{ user_name }}!</h2>
+
+<p>Gracias por registrarte en AIPanel. Estamos emocionados de tenerte como parte de nuestra comunidad.</p>
+
+<p>Con AIPanel podras:</p>
+<ul>
+    <li>Crear agentes de IA personalizados para tu negocio</li>
+    <li>Integrar documentos y conocimiento a tus agentes</li>
+    <li>Chatear con tus agentes usando los mejores modelos de IA</li>
+    <li>Monitorear el uso y costos en tiempo real</li>
+</ul>
+
+<div class="info-box">
+    <strong>Tu cuenta:</strong><br>
+    Email: {{ user_email }}<br>
+    Plan: {{ plan_name }}<br>
+    Tokens disponibles: {{ tokens_available | number_format }}
+</div>
+
+<p style="text-align: center;">
+    <a href="{{ app_url }}/dashboard" class="button">Ir al Dashboard</a>
+</p>
+
+<h3>Primeros pasos</h3>
+<ol>
+    <li><strong>Crea tu primer agente</strong> - Define el proposito y personalidad de tu asistente IA</li>
+    <li><strong>Agrega documentos</strong> - Sube PDFs o texto para dar conocimiento a tu agente</li>
+    <li><strong>Prueba en el Playground</strong> - Interactua con tu agente antes de publicarlo</li>
+    <li><strong>Integra con tu aplicacion</strong> - Usa nuestra API para integrar el agente</li>
+</ol>
+
+<p>Si tienes alguna pregunta, no dudes en contactarnos en <a href="mailto:{{ support_email }}">{{ support_email }}</a></p>
+{% endblock %}
