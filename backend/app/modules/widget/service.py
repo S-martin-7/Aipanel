@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Agent, Tenant, Conversation, Message, MessageRole, ConversationStatus
 from app.integrations import AIEngine, Message as AIMessage
 from app.core.config import settings
+from app.core.plan_limits import PlanLimitGuard, PlanLimitExceededError
 from app.utils.logger import get_logger
 
 from .schemas import (
@@ -36,6 +37,7 @@ class WidgetService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.ai_engine = AIEngine(db)
+        self.plan_guard = PlanLimitGuard(db)
 
     # ============================================================
     # Widget Configuration
@@ -173,6 +175,12 @@ class WidgetService:
         if not agent:
             return None
 
+        # Check plan limits for tenant
+        try:
+            await self.plan_guard.check_token_limit(str(agent.tenant_id))
+        except PlanLimitExceededError:
+            raise ValueError("Service temporarily unavailable. Please try again later.")
+
         # Get or create session/conversation
         session_id = request.session_id
         conversation = None
@@ -254,6 +262,13 @@ class WidgetService:
         agent = await self._get_agent_by_public_key(agent_id, public_key)
         if not agent:
             yield f"data: {{\"error\": \"Agent not found\"}}\n\n"
+            return
+
+        # Check plan limits for tenant
+        try:
+            await self.plan_guard.check_token_limit(str(agent.tenant_id))
+        except PlanLimitExceededError:
+            yield f"data: {{\"error\": \"Service temporarily unavailable\"}}\n\n"
             return
 
         # Get or create session

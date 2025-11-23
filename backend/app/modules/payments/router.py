@@ -55,7 +55,7 @@ async def create_checkout(
 
     Returns a redirect URL to Transbank payment page.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -116,7 +116,7 @@ async def get_subscription(
     service: PaymentService = Depends(get_payment_service),
 ):
     """Get current subscription status and usage."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -134,7 +134,7 @@ async def get_payment_history(
     service: PaymentService = Depends(get_payment_service),
 ):
     """Get payment history for current tenant."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -152,7 +152,7 @@ async def get_invoice(
     service: PaymentService = Depends(get_payment_service),
 ):
     """Get invoice for a completed payment."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 

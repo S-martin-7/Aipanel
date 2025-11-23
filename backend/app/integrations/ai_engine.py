@@ -3,10 +3,12 @@ AI Engine - Dynamic Provider Loading and Routing.
 
 Handles dynamic loading of AI providers and model routing based on configuration.
 Supports tenant-specific API keys with fallback to global config.
+Records usage for billing and analytics.
 """
 
 import importlib
 import base64
+import time
 from typing import Optional, Type
 
 from cryptography.fernet import Fernet
@@ -330,8 +332,44 @@ class AIEngine:
         # Override with kwargs
         params.update({k: v for k, v in kwargs.items() if v is not None})
 
-        # Execute completion
-        return await provider.chat_completion(**params)
+        # Execute completion with timing
+        start_time = time.time()
+        error_info = None
+        response = None
+
+        try:
+            response = await provider.chat_completion(**params)
+        except Exception as e:
+            error_info = {"code": type(e).__name__, "message": str(e)}
+            raise
+        finally:
+            latency_ms = int((time.time() - start_time) * 1000)
+
+            # Log execution (if tenant_id provided)
+            if tenant_id:
+                await self._log_execution(
+                    tenant_id=tenant_id,
+                    agent_id=agent_id,
+                    model=model,
+                    provider_id=str(model.provider_id),
+                    param_profile=param_profile,
+                    params_used=params,
+                    response=response,
+                    latency_ms=latency_ms,
+                    error_info=error_info,
+                    request_type="chat",
+                )
+
+        # Record usage for billing (if tenant_id provided)
+        if tenant_id and response and response.usage:
+            await self._record_usage(
+                tenant_id=tenant_id,
+                agent_id=agent_id,
+                model_name=model.name,
+                usage=response.usage,
+            )
+
+        return response
 
     async def stream_completion(
         self,
@@ -386,6 +424,129 @@ class AIEngine:
         else:
             self._provider_cache.clear()
             logger.info("Provider cache cleared")
+
+    async def _log_execution(
+        self,
+        tenant_id: str,
+        agent_id: Optional[str],
+        model,
+        provider_id: str,
+        param_profile,
+        params_used: dict,
+        response,
+        latency_ms: int,
+        error_info: Optional[dict] = None,
+        request_type: str = "chat",
+        conversation_id: Optional[str] = None,
+        source: str = "panel",
+    ) -> None:
+        """
+        Log AI execution for debugging and analytics.
+
+        Args:
+            tenant_id: Tenant ID
+            agent_id: Agent ID
+            model: AI Model object
+            provider_id: Provider ID
+            param_profile: Parameter profile used
+            params_used: Actual parameters sent
+            response: Response from provider (can be None on error)
+            latency_ms: Total latency in ms
+            error_info: Error details if failed
+            request_type: Type of request (chat, stream, embedding)
+            conversation_id: Conversation ID if applicable
+            source: Source of request (panel, widget, api)
+        """
+        try:
+            from app.modules.ai_logs.service import (
+                AIExecutionLogService,
+                ExecutionContext,
+                ExecutionResult,
+            )
+
+            log_service = AIExecutionLogService(self.db)
+
+            # Build context
+            context = ExecutionContext(
+                tenant_id=tenant_id,
+                agent_id=agent_id,
+                conversation_id=conversation_id,
+                request_type=request_type,
+                source=source,
+            )
+
+            # Build result
+            if error_info:
+                result = ExecutionResult(
+                    status="error",
+                    latency_ms=latency_ms,
+                    error_code=error_info.get("code"),
+                    error_message=error_info.get("message"),
+                    params_used={k: v for k, v in params_used.items() if k != "messages"},
+                )
+            else:
+                usage = response.usage if response and response.usage else {}
+                result = ExecutionResult(
+                    status="success",
+                    input_tokens=usage.get("prompt_tokens", 0),
+                    output_tokens=usage.get("completion_tokens", 0),
+                    total_tokens=usage.get("total_tokens", 0),
+                    latency_ms=latency_ms,
+                    params_used={k: v for k, v in params_used.items() if k != "messages"},
+                )
+
+            await log_service.log_execution(
+                context=context,
+                result=result,
+                provider_id=provider_id,
+                model_id=str(model.id) if model else None,
+                param_profile_id=str(param_profile.id) if param_profile else None,
+            )
+
+        except Exception as e:
+            # Don't fail the request if logging fails
+            logger.error(f"Failed to log execution: {e}")
+
+    async def _record_usage(
+        self,
+        tenant_id: str,
+        agent_id: Optional[str],
+        model_name: str,
+        usage: dict,
+    ) -> None:
+        """
+        Record token usage for billing and analytics.
+
+        Args:
+            tenant_id: Tenant ID
+            agent_id: Agent ID (optional)
+            model_name: Model name used
+            usage: Usage dict with token counts
+        """
+        try:
+            # Import here to avoid circular imports
+            from app.modules.usage.service import UsageService
+
+            usage_service = UsageService(self.db)
+            await usage_service.record_usage(
+                tenant_id=tenant_id,
+                agent_id=agent_id or "system",
+                model=model_name,
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+            )
+            logger.info(
+                f"Usage recorded: {usage.get('total_tokens', 0)} tokens for model={model_name}",
+                extra={
+                    "tenant_id": tenant_id,
+                    "agent_id": agent_id,
+                    "model": model_name,
+                    "tokens": usage.get("total_tokens", 0),
+                }
+            )
+        except Exception as e:
+            # Don't fail the request if usage tracking fails
+            logger.error(f"Failed to record usage: {e}")
 
 
 # Factory function for dependency injection

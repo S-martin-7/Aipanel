@@ -24,6 +24,7 @@ from .user import User, RefreshToken
 from .tenant import Tenant, TenantUser
 from .agent import Agent, Conversation, Message
 from .ai_provider import AIProvider, AIModel, AIParamProfile, AIRoute, FeatureFlag
+from .ai_execution_log import AIExecutionLog, ExecutionStatus, RequestType
 from .document import Document, DocumentChunk, ChunkSummary, DocumentSummary
 from .usage import (
     TokenUsage, UsageSummary, UsageThreshold, UsageAlert, Payment,
@@ -69,6 +70,10 @@ __all__ = [
     "AIParamProfile",
     "AIRoute",
     "FeatureFlag",
+    # AI Execution Log
+    "AIExecutionLog",
+    "ExecutionStatus",
+    "RequestType",
     # Document models
     "Document",
     "DocumentChunk",

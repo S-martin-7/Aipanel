@@ -45,7 +45,7 @@ async def list_documents(
     service: DocumentService = Depends(get_document_service),
 ):
     """List all documents for current tenant."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -71,7 +71,7 @@ async def upload_document(
     Supported types: PDF, TXT, MD, HTML
     Max size: 10MB
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -129,7 +129,7 @@ async def get_document(
     service: DocumentService = Depends(get_document_service),
 ):
     """Get document by ID."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -147,7 +147,7 @@ async def get_document_status(
     service: DocumentService = Depends(get_document_service),
 ):
     """Get document processing status."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -171,7 +171,7 @@ async def get_document_chunks(
     service: DocumentService = Depends(get_document_service),
 ):
     """Get all chunks for a document."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -189,7 +189,7 @@ async def delete_document(
     service: DocumentService = Depends(get_document_service),
 ):
     """Delete a document and its chunks."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -209,7 +209,7 @@ async def search_documents(
 
     Searches document chunks and summaries.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 

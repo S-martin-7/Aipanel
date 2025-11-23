@@ -194,6 +194,79 @@ RATE_LIMITS = {
 }
 
 
+class TenantRateLimiter:
+    """
+    Tenant-aware rate limiter that respects plan limits.
+
+    Uses Redis for distributed rate limiting with plan-based limits.
+    """
+
+    def __init__(self, base_limiter: RateLimiter):
+        self.base_limiter = base_limiter
+
+    async def is_allowed_for_tenant(
+        self,
+        tenant_id: str,
+        plan_limit: int,
+        window_seconds: int = 60,
+    ) -> tuple[bool, dict]:
+        """
+        Check if request is allowed for tenant under their plan limit.
+
+        Args:
+            tenant_id: Tenant ID
+            plan_limit: Limit based on tenant's plan
+            window_seconds: Time window
+
+        Returns:
+            Tuple of (is_allowed, rate_info)
+        """
+        key = f"tenant:{tenant_id}"
+        return await self.base_limiter.is_allowed(key, plan_limit, window_seconds)
+
+    async def is_allowed_for_api_key(
+        self,
+        api_key_hash: str,
+        limit: int = 100,
+        window_seconds: int = 60,
+    ) -> tuple[bool, dict]:
+        """
+        Check rate limit for external API key.
+
+        Args:
+            api_key_hash: Hashed API key
+            limit: Requests limit
+            window_seconds: Time window
+
+        Returns:
+            Tuple of (is_allowed, rate_info)
+        """
+        key = f"api_key:{api_key_hash}"
+        return await self.base_limiter.is_allowed(key, limit, window_seconds)
+
+    async def is_allowed_for_widget(
+        self,
+        agent_id: str,
+        visitor_ip: str,
+        limit: int = 30,
+        window_seconds: int = 60,
+    ) -> tuple[bool, dict]:
+        """
+        Check rate limit for widget (public) requests.
+
+        Args:
+            agent_id: Agent being accessed
+            visitor_ip: Visitor IP address
+            limit: Requests limit
+            window_seconds: Time window
+
+        Returns:
+            Tuple of (is_allowed, rate_info)
+        """
+        key = f"widget:{agent_id}:{visitor_ip}"
+        return await self.base_limiter.is_allowed(key, limit, window_seconds)
+
+
 def rate_limit(limit: int = 100, window: int = 60):
     """
     Decorator for endpoint-specific rate limiting.
@@ -210,5 +283,6 @@ def rate_limit(limit: int = 100, window: int = 60):
     return decorator
 
 
-# Global rate limiter instance
+# Global rate limiter instances
 rate_limiter = RateLimiter()
+tenant_rate_limiter = TenantRateLimiter(rate_limiter)

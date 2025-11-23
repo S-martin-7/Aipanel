@@ -18,6 +18,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.core.config import settings
 from app.core.rate_limiter import RateLimitMiddleware, rate_limiter
 from app.core.database import init_database, close_database
+from app.core.request_context import RequestContextMiddleware
+from app.core.startup_validation import run_startup_validation, run_all_validations
 from app.utils.logger import setup_logging, get_logger
 
 # Importar routers de módulos
@@ -40,6 +42,12 @@ from app.modules.webhooks.router import router as webhooks_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.audit.router import router as audit_router
 from app.modules.email.router import router as email_router
+from app.modules.ai_logs.router import router as ai_logs_router
+from app.modules.admin import (
+    platform_router as admin_platform_router,
+    tenant_router as admin_tenant_router,
+    user_portal_router as user_portal_router,
+)
 
 logger = get_logger(__name__)
 
@@ -89,10 +97,14 @@ def create_app() -> FastAPI:
 def _configure_middleware(app: FastAPI) -> None:
     """Configurar middleware de la aplicación."""
 
+    # Request Context (first - outer middleware runs last)
+    # This sets up request_id, tenant_id, user_id for logging
+    app.add_middleware(RequestContextMiddleware)
+
     # CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=settings.get_cors_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -227,9 +239,37 @@ def _register_routers(app: FastAPI) -> None:
     )
 
     app.include_router(
+        ai_logs_router,
+        prefix=f"{api_prefix}/ai-logs",
+        tags=["ai-logs"]
+    )
+
+    app.include_router(
         email_router,
         prefix=f"{api_prefix}/email",
         tags=["email"]
+    )
+
+    # Admin Panel Routers (3 levels)
+    # Level 1: Platform Admin (Super Admin)
+    app.include_router(
+        admin_platform_router,
+        prefix=f"{api_prefix}/admin/platform",
+        tags=["admin-platform"]
+    )
+
+    # Level 2: Tenant Admin
+    app.include_router(
+        admin_tenant_router,
+        prefix=f"{api_prefix}/admin/tenant",
+        tags=["admin-tenant"]
+    )
+
+    # Level 3: User Portal
+    app.include_router(
+        user_portal_router,
+        prefix=f"{api_prefix}/portal",
+        tags=["user-portal"]
     )
 
     logger.info("Routers de modulos registrados")
@@ -243,13 +283,19 @@ def _configure_events(app: FastAPI) -> None:
         """Ejecutado al iniciar la aplicación."""
         logger.info("Ejecutando tareas de startup")
 
-        # Inicializar conexión a base de datos
+        # 1. Validate configuration (fail fast on critical errors)
+        run_startup_validation(
+            fail_on_error=(settings.ENVIRONMENT == "production")
+        )
+
+        # 2. Inicializar conexión a base de datos
         await init_database()
 
-        # Aquí se pueden agregar otras tareas de inicio:
-        # - Inicializar conexión a Redis
-        # - Verificar conexión a servicios externos
-        # - Cargar configuración adicional
+        # 3. Run async validations (database, redis, etc.)
+        validation_results = await run_all_validations(
+            fail_on_critical=(settings.ENVIRONMENT == "production")
+        )
+        logger.info(f"Validation results: {validation_results}")
 
         logger.info("Startup completado")
 

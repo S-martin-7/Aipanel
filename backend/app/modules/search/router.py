@@ -50,7 +50,7 @@ async def search_documents(
 
     Returns relevant snippets with highlighting and optional facets.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -97,7 +97,7 @@ async def get_search_suggestions(
 
     Returns document titles and chunk snippets that match the query.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -143,7 +143,7 @@ async def get_similar_documents(
 
     Uses vector embeddings to find semantically similar content.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
