@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from app.models import Agent, Conversation, Message, User
 from app.models.enums import MessageRole, ConversationStatus
 from app.integrations import AIEngine, Message as AIMessage
+from app.core.plan_limits import PlanLimitGuard, PlanLimitExceededError
 from app.utils.logger import get_logger
 
 from .schemas import (
@@ -44,6 +45,7 @@ class ChatService:
         """Initialize with database session."""
         self.db = db
         self.ai_engine = AIEngine(db)
+        self.plan_guard = PlanLimitGuard(db)
 
     async def create_completion(
         self,
@@ -61,7 +63,17 @@ class ChatService:
 
         Returns:
             ChatCompletionResponse with AI response
+
+        Raises:
+            PlanLimitExceededError: If tenant has exceeded their plan limits
         """
+        # Check plan limits before making AI call
+        usage_status = await self.plan_guard.check_token_limit(tenant_id)
+        if usage_status.is_near_limit:
+            logger.warning(
+                f"Tenant {tenant_id} approaching limit: {usage_status.usage_percentage}%"
+            )
+
         # Extract user_id from auth context
         # For API key auth, user_id may be None (use api_key_id instead)
         user_id = auth_context.get("user_id") or auth_context.get("api_key_id")
@@ -146,6 +158,15 @@ class ChatService:
 
         Yields SSE-formatted chunks.
         """
+        # Check plan limits before making AI call
+        try:
+            usage_status = await self.plan_guard.check_token_limit(tenant_id)
+            if usage_status.is_near_limit:
+                yield f"data: {{\"warning\": \"You've used {usage_status.usage_percentage}% of your plan tokens\"}}\n\n"
+        except PlanLimitExceededError as e:
+            yield f"data: {{\"error\": \"Plan limit exceeded: {e.usage_status.tokens_used}/{e.usage_status.tokens_limit} tokens used\"}}\n\n"
+            return
+
         # Extract user_id from auth context
         user_id = auth_context.get("user_id") or auth_context.get("api_key_id")
 
