@@ -42,6 +42,7 @@ from app.modules.webhooks.router import router as webhooks_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.audit.router import router as audit_router
 from app.modules.email.router import router as email_router
+from app.modules.ai_logs.router import router as ai_logs_router
 
 logger = get_logger(__name__)
 
@@ -230,6 +231,12 @@ def _register_routers(app: FastAPI) -> None:
         audit_router,
         prefix=f"{api_prefix}/audit",
         tags=["audit"]
+    )
+
+    app.include_router(
+        ai_logs_router,
+        prefix=f"{api_prefix}/ai-logs",
+        tags=["ai-logs"]
     )
 
     app.include_router(
