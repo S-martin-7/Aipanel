@@ -43,6 +43,11 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.audit.router import router as audit_router
 from app.modules.email.router import router as email_router
 from app.modules.ai_logs.router import router as ai_logs_router
+from app.modules.admin import (
+    platform_router as admin_platform_router,
+    tenant_router as admin_tenant_router,
+    user_portal_router as user_portal_router,
+)
 
 logger = get_logger(__name__)
 
@@ -243,6 +248,28 @@ def _register_routers(app: FastAPI) -> None:
         email_router,
         prefix=f"{api_prefix}/email",
         tags=["email"]
+    )
+
+    # Admin Panel Routers (3 levels)
+    # Level 1: Platform Admin (Super Admin)
+    app.include_router(
+        admin_platform_router,
+        prefix=f"{api_prefix}/admin/platform",
+        tags=["admin-platform"]
+    )
+
+    # Level 2: Tenant Admin
+    app.include_router(
+        admin_tenant_router,
+        prefix=f"{api_prefix}/admin/tenant",
+        tags=["admin-tenant"]
+    )
+
+    # Level 3: User Portal
+    app.include_router(
+        user_portal_router,
+        prefix=f"{api_prefix}/portal",
+        tags=["user-portal"]
     )
 
     logger.info("Routers de modulos registrados")
