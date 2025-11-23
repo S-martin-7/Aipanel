@@ -3,6 +3,7 @@ AI Engine - Dynamic Provider Loading and Routing.
 
 Handles dynamic loading of AI providers and model routing based on configuration.
 Supports tenant-specific API keys with fallback to global config.
+Records usage for billing and analytics.
 """
 
 import importlib
@@ -331,7 +332,18 @@ class AIEngine:
         params.update({k: v for k, v in kwargs.items() if v is not None})
 
         # Execute completion
-        return await provider.chat_completion(**params)
+        response = await provider.chat_completion(**params)
+
+        # Record usage for billing (if tenant_id provided)
+        if tenant_id and response.usage:
+            await self._record_usage(
+                tenant_id=tenant_id,
+                agent_id=agent_id,
+                model_name=model.name,
+                usage=response.usage,
+            )
+
+        return response
 
     async def stream_completion(
         self,
@@ -386,6 +398,47 @@ class AIEngine:
         else:
             self._provider_cache.clear()
             logger.info("Provider cache cleared")
+
+    async def _record_usage(
+        self,
+        tenant_id: str,
+        agent_id: Optional[str],
+        model_name: str,
+        usage: dict,
+    ) -> None:
+        """
+        Record token usage for billing and analytics.
+
+        Args:
+            tenant_id: Tenant ID
+            agent_id: Agent ID (optional)
+            model_name: Model name used
+            usage: Usage dict with token counts
+        """
+        try:
+            # Import here to avoid circular imports
+            from app.modules.usage.service import UsageService
+
+            usage_service = UsageService(self.db)
+            await usage_service.record_usage(
+                tenant_id=tenant_id,
+                agent_id=agent_id or "system",
+                model=model_name,
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+            )
+            logger.info(
+                f"Usage recorded: {usage.get('total_tokens', 0)} tokens for model={model_name}",
+                extra={
+                    "tenant_id": tenant_id,
+                    "agent_id": agent_id,
+                    "model": model_name,
+                    "tokens": usage.get("total_tokens", 0),
+                }
+            )
+        except Exception as e:
+            # Don't fail the request if usage tracking fails
+            logger.error(f"Failed to record usage: {e}")
 
 
 # Factory function for dependency injection

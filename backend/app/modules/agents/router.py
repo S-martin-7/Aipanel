@@ -35,7 +35,7 @@ async def list_agents(
     service: AgentService = Depends(get_agent_service),
 ):
     """List all agents for current tenant."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -49,7 +49,7 @@ async def create_agent(
     service: AgentService = Depends(get_agent_service),
 ):
     """Create a new AI agent."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -63,7 +63,7 @@ async def get_agent(
     service: AgentService = Depends(get_agent_service),
 ):
     """Get agent by ID."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -82,7 +82,7 @@ async def update_agent(
     service: AgentService = Depends(get_agent_service),
 ):
     """Update agent configuration."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -100,7 +100,7 @@ async def delete_agent(
     service: AgentService = Depends(get_agent_service),
 ):
     """Delete (archive) an agent."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 

@@ -42,7 +42,7 @@ async def get_usage_summary(
 
     Includes totals and breakdowns by model and agent.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -64,7 +64,7 @@ async def get_usage_quota(
 
     Shows tokens used, remaining, and limit based on plan.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -85,7 +85,7 @@ async def get_usage_chart(
 
     Returns data points for the specified number of days.
     """
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -101,7 +101,7 @@ async def get_usage_by_agent(
     service: UsageService = Depends(get_usage_service),
 ):
     """Get token usage breakdown by agent."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
@@ -119,7 +119,7 @@ async def get_usage_by_model(
     service: UsageService = Depends(get_usage_service),
 ):
     """Get token usage breakdown by AI model."""
-    tenant_id = getattr(current_user, "tenant_id", None)
+    tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
